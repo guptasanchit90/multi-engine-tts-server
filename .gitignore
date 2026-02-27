@@ -1,0 +1,36 @@
+# Large model files (users download separately)
+models/
+
+# Virtual environment
+.venv/
+venv/
+
+# Temp files
+temp_*/
+temp_convert_*.wav
+
+# User data (keep directory structure but ignore content)
+voices/*
+!voices/.gitkeep
+outputs/**
+!outputs/.gitkeep
+!outputs/**/
+
+# System files
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python packaging artifacts
+*.egg-info/
+dist/
+build/
+.eggs/

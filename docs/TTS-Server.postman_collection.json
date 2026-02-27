@@ -1,0 +1,424 @@
+{
+  "info": {
+    "name": "Local TTS Server",
+    "description": "Multi-engine, offline TTS server. All `/tts` requests return an MP3 file (`audio/mpeg`).\n\n**Engines:**\n- **Qwen3** (MLX · Apple Silicon only) — CustomVoice, VoiceDesign, Voice Cloning\n- **Kokoro** (ONNX) — 54 built-in voices across 9 languages\n- **Piper** (ONNX) — fastest inference, 40+ languages, ~80 MB per voice\n\n**Base URL variable:** set `base_url` to `http://localhost:8000` (default).\n\n**Reproducibility (Qwen3):** set `temperature: 0` and a fixed `seed` for identical output on every call. The seed actually used is echoed in the `X-Seed` response header.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "TTS — Generate Speech",
+      "item": [
+        {
+          "name": "Custom Voice (Pro 1.7B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello! This is a custom voice with emotion control.\",\n  \"model\": \"Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit\",\n  \"speaker_name\": \"Ryan\",\n  \"voice_description\": \"Excited and upbeat\",\n  \"speed\": \"normal\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Uses a built-in speaker (Ryan) with an emotion instruction. `voice_description` sets the tone/emotion for CustomVoice models.\n\nAvailable speakers: Ryan, Aiden, Ethan, Chelsie, Serena, Vivian, Uncle_Fu, Dylan, Eric, Ono_Anna, Sohee\n\nSpeed options: slow, normal, fast\n\nSave the response body as a `.mp3` file."
+          },
+          "response": []
+        },
+        {
+          "name": "Custom Voice (Lite 0.6B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"This is the faster, lighter 0.6B model with a calm tone.\",\n  \"model\": \"Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit\",\n  \"speaker_name\": \"Vivian\",\n  \"voice_description\": \"Calm and professional\",\n  \"speed\": \"normal\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Same as the Pro model but uses the faster 0.6B variant. Lower RAM usage (~3 GB vs ~6 GB)."
+          },
+          "response": []
+        },
+        {
+          "name": "Custom Voice — Slow Speed",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Speaking slowly and clearly for better comprehension.\",\n  \"model\": \"Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit\",\n  \"speaker_name\": \"Ethan\",\n  \"speed\": \"slow\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Demonstrates the slow speed preset (0.8×). No emotion instruction — defaults to normal tone."
+          },
+          "response": []
+        },
+        {
+          "name": "Custom Voice — Fast Speed",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"This is delivered quickly, like an energetic radio presenter.\",\n  \"model\": \"Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit\",\n  \"speaker_name\": \"Aiden\",\n  \"voice_description\": \"Energetic and fast-talking\",\n  \"speed\": \"fast\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Demonstrates the fast speed preset (1.3×)."
+          },
+          "response": []
+        },
+        {
+          "name": "Voice Design (Pro 1.7B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Welcome to the evening news. Tonight's top stories.\",\n  \"model\": \"Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit\",\n  \"voice_description\": \"Deep, authoritative male news anchor with a slight British accent\",\n  \"speed\": \"normal\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Generates a voice from a plain-English description. `voice_description` is required for VoiceDesign models.\n\nTry descriptions like:\n- \"Warm, friendly female customer support agent\"\n- \"Excited young child, speaking fast\"\n- \"Elderly professor, slow and thoughtful\""
+          },
+          "response": []
+        },
+        {
+          "name": "Voice Design (Lite 0.6B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Your order has been confirmed and will arrive tomorrow.\",\n  \"model\": \"Qwen3-TTS-12Hz-0.6B-VoiceDesign-8bit\",\n  \"voice_description\": \"Friendly, upbeat female assistant\",\n  \"speed\": \"normal\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Voice design with the lighter 0.6B model."
+          },
+          "response": []
+        },
+        {
+          "name": "Voice Cloning (Pro 1.7B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"This text will be spoken in the cloned voice.\",\n  \"model\": \"Qwen3-TTS-12Hz-1.7B-Base-8bit\",\n  \"sample_voice_file\": \"my_voice\",\n  \"speed\": \"normal\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Clones a voice from a WAV file.\n\n**Setup:** place `my_voice.wav` in the `voices/` directory. Optionally add `my_voice.txt` containing the exact transcript — this significantly improves quality.\n\n`sample_voice_file` accepts the filename with or without the `.wav` extension. New files are picked up immediately without restarting the server."
+          },
+          "response": []
+        },
+        {
+          "name": "Voice Cloning (Lite 0.6B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Cloning with the faster lite model.\",\n  \"model\": \"Qwen3-TTS-12Hz-0.6B-Base-8bit\",\n  \"sample_voice_file\": \"my_voice\",\n  \"speed\": \"normal\",\n  \"temperature\": 0.0,\n  \"seed\": 42\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Voice cloning with the 0.6B model."
+          },
+          "response": []
+        },
+        {
+          "name": "With Natural Variation (temperature=0.7)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Every call will sound slightly different with higher temperature.\",\n  \"model\": \"Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit\",\n  \"speaker_name\": \"Serena\",\n  \"speed\": \"normal\",\n  \"temperature\": 0.7\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "No `seed` set and `temperature=0.7` — output will vary naturally on each call, like the original library default. Check the `X-Seed` response header to replay a specific result."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Kokoro — Generate Speech",
+      "item": [
+        {
+          "name": "American English — Female (af_heart)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello! This is Kokoro TTS running locally via ONNX.\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"af_heart\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Default Kokoro voice — af_heart is a 50/50 blend of af_bella and af_sarah, American English female.\n\nNo `seed` or `temperature` — Kokoro uses a deterministic ONNX graph, so output is already reproducible for the same input."
+          },
+          "response": []
+        },
+        {
+          "name": "American English — Male (am_fenrir)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Welcome. Kokoro is an 82 million parameter text-to-speech model.\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"am_fenrir\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "American English male voice. am_fenrir is one of the higher-quality male voices."
+          },
+          "response": []
+        },
+        {
+          "name": "British English — Female (bf_emma)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Good afternoon. It's rather lovely weather we're having today, isn't it?\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"bf_emma\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "British English female. bf_emma is the highest-quality British voice (HH hours training data)."
+          },
+          "response": []
+        },
+        {
+          "name": "British English — Male (bm_george)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"The report has been submitted to the committee for review.\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"bm_george\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "British English male voice."
+          },
+          "response": []
+        },
+        {
+          "name": "Slow Speed (af_bella)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Speaking slowly and clearly for better comprehension.\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"af_bella\",\n  \"speed\": \"slow\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Kokoro with slow speed preset (0.8×). af_bella is one of the best American English female voices."
+          },
+          "response": []
+        },
+        {
+          "name": "Fast Speed (am_michael)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"This is delivered at a faster pace for quick announcements.\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"am_michael\",\n  \"speed\": \"fast\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Kokoro with fast speed preset (1.3×)."
+          },
+          "response": []
+        },
+        {
+          "name": "French (ff_siwis)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Bonjour, je suis Kokoro. C'est un plaisir de vous parler.\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"ff_siwis\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "French female voice. Language is inferred automatically from the voice name prefix (f = French).\n\nKokoro supports: American English (a), British English (b), Japanese (j), Mandarin (z), Spanish (e), French (f), Hindi (h), Italian (i), Brazilian Portuguese (p)."
+          },
+          "response": []
+        },
+        {
+          "name": "Hindi (hf_alpha)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"नमस्ते, मैं कोकोरो हूँ।\",\n  \"model\": \"kokoro-v1.0\",\n  \"speaker_name\": \"hf_alpha\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Hindi female voice. Language inferred from voice prefix (h = Hindi)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Piper — Generate Speech",
+      "item": [
+        {
+          "name": "English US — lessac (medium)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello! This is Piper TTS, a fast and local neural text-to-speech engine.\",\n  \"model\": \"en_US-lessac-medium\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Piper English US voice. Download first:\n```\npython -m piper.download_voices --download-dir models/piper en_US-lessac-medium\n```\n\nThe `model` field is the exact voice stem (filename without `.onnx`). No `speaker_name` needed — each Piper model IS a voice."
+          },
+          "response": []
+        },
+        {
+          "name": "English GB — alba (medium)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Good afternoon. Piper supports a wide variety of voices and languages.\",\n  \"model\": \"en_GB-alba-medium\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "British English voice.\n```\npython -m piper.download_voices --download-dir models/piper en_GB-alba-medium\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "German — thorsten (low)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hallo! Piper unterstützt viele Sprachen und Stimmen.\",\n  \"model\": \"de_DE-thorsten-low\",\n  \"speed\": \"normal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "German voice (low quality = smallest file, fastest).\n```\npython -m piper.download_voices --download-dir models/piper de_DE-thorsten-low\n```\n\nBrowse all 40+ supported languages: https://huggingface.co/rhasspy/piper-voices"
+          },
+          "response": []
+        },
+        {
+          "name": "Slow Speed",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Speaking slowly and clearly for maximum comprehension.\",\n  \"model\": \"en_US-lessac-medium\",\n  \"speed\": \"slow\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Piper uses `length_scale` internally for speed control: slow=1.4, normal=1.0, fast=0.75."
+          },
+          "response": []
+        },
+        {
+          "name": "Fast Speed",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tts", "host": ["{{base_url}}"], "path": ["tts"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Fast delivery for announcements or notifications.\",\n  \"model\": \"en_US-lessac-medium\",\n  \"speed\": \"fast\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Piper fast speed (length_scale=0.75)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Utility",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] },
+            "description": "Returns `{\"status\": \"ok\"}` when the server is running."
+          },
+          "response": []
+        },
+        {
+          "name": "List Models",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/models", "host": ["{{base_url}}"], "path": ["models"] },
+            "description": "Lists all models across all registered engines with on-disk availability.\n\nExample response:\n```json\n[\n  {\"engine\": \"qwen\",   \"model\": \"Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit\", \"mode\": \"custom\",  \"available\": true},\n  {\"engine\": \"qwen\",   \"model\": \"Qwen3-TTS-12Hz-1.7B-Base-8bit\",        \"mode\": \"clone\",   \"available\": false},\n  {\"engine\": \"kokoro\", \"model\": \"kokoro-v1.0\",                           \"mode\": \"speaker\", \"available\": true},\n  {\"engine\": \"piper\",  \"model\": \"en_US-lessac-medium\",                   \"mode\": \"speaker\", \"available\": true}\n]\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "List Voices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/voices", "host": ["{{base_url}}"], "path": ["voices"] },
+            "description": "Returns all voices grouped by engine and category.\n\nExample response:\n```json\n{\n  \"qwen\": {\n    \"built_in\":  [\"Aiden\", \"Chelsie\", \"Ryan\", ...],\n    \"cloneable\": [\"my_voice.wav\"]\n  },\n  \"kokoro\": {\n    \"en-us\": [\"af_heart\", \"af_bella\", ...],\n    \"en-gb\": [\"bf_emma\", ...],\n    \"ja\":    [\"jf_alpha\", ...],\n    \"zh\":    [\"zf_xiaobei\", ...]\n  },\n  \"piper\": {\n    \"en_US\": [\"en_US-lessac-medium\"],\n    \"en_GB\": [\"en_GB-alba-medium\"]\n  }\n}\n```\n\nCloneable voice files and Piper voices are read from disk at request time — no restart needed."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete All Outputs",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/outputs", "host": ["{{base_url}}"], "path": ["outputs"] },
+            "description": "Deletes all generated MP3 files from the `outputs/server/` directory. The directory itself is preserved so the server can continue writing new files.\n\nExample response:\n```json\n{\n  \"deleted\": 3,\n  \"files\": [\"abc123.mp3\", \"def456.mp3\", \"ghi789.mp3\"]\n}\n```\n\nIf any files could not be deleted, an `errors` array is included alongside the successfully deleted ones."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

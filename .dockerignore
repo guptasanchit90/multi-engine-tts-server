@@ -1,0 +1,30 @@
+# Git and editor metadata
+.git/
+.gitignore
+.DS_Store
+.vscode/
+.idea/
+
+# Python virtual environment
+venv/
+.venv/
+
+# Cached bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Large model files (mount these as volumes at runtime)
+models/
+
+# User data (mount as volumes at runtime)
+voices/
+outputs/
+
+# Documentation and dev tooling
+docs/
+CONTRIBUTING.md
+AGENTS.md
+
+# Temporary files
+temp_*/
