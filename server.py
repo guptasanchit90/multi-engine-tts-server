@@ -91,6 +91,7 @@ class TTSRequest(BaseModel):
     speed: str = "normal"
     temperature: float = 0.0
     seed: int | None = None
+    add_pauses: bool = True
 
     @field_validator("text")
     @classmethod

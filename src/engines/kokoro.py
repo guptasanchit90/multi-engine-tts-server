@@ -133,6 +133,43 @@ def _lang_for_voice(voice: str) -> str:
     return _LANG_MAP.get(prefix, "en-us")
 
 
+def _add_pauses(text: str, sample_rate: int) -> np.ndarray:
+    """
+    Insert silence into audio based on punctuation in text.
+    
+    Returns silence array to append between segments.
+    """
+    PAUSE_MAP = {
+        ".": 0.5,
+        "...": 1.2,
+        "?": 0.5,
+        "!": 0.6,
+        ",": 0.2,
+        ";": 0.3,
+    }
+    newline_pause = 0.4
+
+    total_silence = 0.0
+    i = 0
+    while i < len(text):
+        matched = False
+        for punct in sorted(PAUSE_MAP.keys(), key=len, reverse=True):
+            if text[i:].startswith(punct):
+                total_silence += PAUSE_MAP[punct]
+                i += len(punct)
+                matched = True
+                break
+        if not matched:
+            if text[i] == "\n":
+                total_silence += newline_pause
+            i += 1
+
+    if total_silence <= 0:
+        return np.array([], dtype=np.float32)
+
+    return np.zeros(int(sample_rate * total_silence), dtype=np.float32)
+
+
 # ---------------------------------------------------------------------------
 # Engine
 # ---------------------------------------------------------------------------
@@ -203,6 +240,7 @@ class KokoroEngine:
         voice  = request.get("speaker_name") or "af_heart"
         speed  = request["speed_value"]   # float, resolved by server
         text   = request["text"]
+        add_pauses = request.get("add_pauses", True)
 
         voices, weights = _parse_voices(voice)
         lang = _lang_for_voice(voices[0])
@@ -233,9 +271,15 @@ class KokoroEngine:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Kokoro generation failed: {e}")
 
+        samples = np.array(samples)
+        if add_pauses:
+            pause_samples = _add_pauses(text, sample_rate)
+            if len(pause_samples) > 0:
+                samples = np.concatenate([samples, pause_samples])
+
         wav_path = os.path.join(tmp_dir, "audio_000.wav")
         try:
-            sf.write(wav_path, np.array(samples), sample_rate)
+            sf.write(wav_path, samples, sample_rate)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to write WAV: {e}")
 
