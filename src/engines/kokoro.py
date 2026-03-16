@@ -90,6 +90,43 @@ def _model_available() -> bool:
     return os.path.exists(_onnx_path()) and os.path.exists(_voices_path())
 
 
+def _parse_voices(voice_input: str) -> tuple[list[str], list[float] | None]:
+    """
+    Parse voice input that can be:
+      - Single voice: "af_heart"
+      - Multiple voices: "af_heart,am_michael"
+      - Weighted voices: "af_heart:0.6,am_michael:0.4"
+    
+    Returns (voices, weights) where weights is None for equal blend.
+    """
+    parts = [p.strip() for p in voice_input.split(",")]
+    voices = []
+    weights = []
+    
+    for part in parts:
+        if ":" in part:
+            voice, weight = part.rsplit(":", 1)
+            voices.append(voice.strip())
+            try:
+                weights.append(float(weight.strip()) / 100)
+            except ValueError:
+                weights.append(float(weight.strip()))
+        else:
+            voices.append(part)
+    
+    if weights and len(weights) == len(voices):
+        return voices, weights
+    return voices, None
+
+
+def _all_same_lang(voices: list[str]) -> bool:
+    """Check if all voices share the same language prefix."""
+    if not voices:
+        return True
+    prefixes = {v[0] for v in voices}
+    return len(prefixes) == 1
+
+
 def _lang_for_voice(voice: str) -> str:
     """Derive the language code from the voice name prefix."""
     prefix = voice[0] if voice else "a"
@@ -146,10 +183,19 @@ class KokoroEngine:
             )
 
         speaker = request.get("speaker_name") or "af_heart"
-        if speaker not in _ALL_VOICES:
+        voices, weights = _parse_voices(speaker)
+
+        for v in voices:
+            if v not in _ALL_VOICES:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown Kokoro voice '{v}'. See GET /voices for the full list.",
+                )
+
+        if len(voices) > 1 and not _all_same_lang(voices):
             raise HTTPException(
                 status_code=422,
-                detail=f"Unknown Kokoro voice '{speaker}'. See GET /voices for the full list.",
+                detail="Cannot blend voices from different languages.",
             )
 
     def generate(self, request: dict, tmp_dir: str) -> str:
@@ -157,13 +203,30 @@ class KokoroEngine:
         voice  = request.get("speaker_name") or "af_heart"
         speed  = request["speed_value"]   # float, resolved by server
         text   = request["text"]
-        lang   = _lang_for_voice(voice)
+
+        voices, weights = _parse_voices(voice)
+        lang = _lang_for_voice(voices[0])
 
         try:
             kokoro = Kokoro(_onnx_path(), _voices_path())
+
+            if len(voices) == 1:
+                voice_param = voices[0]
+            else:
+                blended = None
+                for i, v in enumerate(voices):
+                    style = kokoro.get_voice_style(v)
+                    w = weights[i] if weights else (1.0 / len(voices))
+                    if blended is None:
+                        blended = style * w
+                    else:
+                        blended = np.add(blended, style * w)
+                voice_param = blended
+            assert voice_param is not None
+
             samples, sample_rate = kokoro.create(
                 text,
-                voice=voice,
+                voice=voice_param,
                 speed=speed,
                 lang=lang,
             )
