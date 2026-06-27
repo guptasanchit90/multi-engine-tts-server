@@ -11,6 +11,7 @@ try:
     import mlx.core as mx
     from mlx_audio.tts.generate import generate_audio
     from mlx_audio.tts.utils import load_model
+
     _MLX_AVAILABLE = True
 except ImportError:
     pass
@@ -36,11 +37,11 @@ MODELS_DIR = os.path.join(os.getcwd(), "models", "qwen")
 _MODELS: dict[str, str] = {
     "Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit": "custom",
     "Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit": "design",
-    "Qwen3-TTS-12Hz-1.7B-Base-8bit":        "clone",
+    "Qwen3-TTS-12Hz-1.7B-Base-8bit": "clone",
     "Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit": "custom",
     "Qwen3-TTS-12Hz-0.6B-VoiceDesign-8bit": "design",
-    "Qwen3-TTS-12Hz-0.6B-Base-8bit":        "clone",
-    "Qwen3-TTS-12Hz-1.7B-Base-4bit":        "clone",
+    "Qwen3-TTS-12Hz-0.6B-Base-8bit": "clone",
+    "Qwen3-TTS-12Hz-1.7B-Base-4bit": "clone",
 }
 
 _MODEL_META: dict[str, dict] = {
@@ -89,8 +90,17 @@ _MODEL_META: dict[str, dict] = {
 }
 
 _SPEAKERS: set[str] = {
-    "Ryan", "Aiden", "Ethan", "Chelsie", "Serena", "Vivian",
-    "Uncle_Fu", "Dylan", "Eric", "Ono_Anna", "Sohee",
+    "Ryan",
+    "Aiden",
+    "Ethan",
+    "Chelsie",
+    "Serena",
+    "Vivian",
+    "Uncle_Fu",
+    "Dylan",
+    "Eric",
+    "Ono_Anna",
+    "Sohee",
 }
 
 _speaker_embedding_cache: dict[str, mx.array] = {}
@@ -109,6 +119,7 @@ def _load_audio_for_embedding(audio_path: str):
         )
 
     import tempfile
+
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         tmp_path = tmp.name
 
@@ -193,10 +204,15 @@ class QwenEngine(BaseEngine):
 
     def list_models(self) -> list[dict]:
         meta = _MODEL_META
-        cloneable = sorted(
-            f for f in os.listdir(VOICES_DIR)
-            if f.lower().endswith(".wav") and not f.startswith(".")
-        ) if os.path.exists(VOICES_DIR) else []
+        cloneable = (
+            sorted(
+                f
+                for f in os.listdir(VOICES_DIR)
+                if f.lower().endswith(".wav") and not f.startswith(".")
+            )
+            if os.path.exists(VOICES_DIR)
+            else []
+        )
 
         def _voices(mode: str) -> dict:
             if mode == "custom":
@@ -222,10 +238,15 @@ class QwenEngine(BaseEngine):
         ]
 
     def list_voices(self) -> dict:
-        cloneable = sorted(
-            f for f in os.listdir(VOICES_DIR)
-            if f.lower().endswith(".wav") and not f.startswith(".")
-        ) if os.path.exists(VOICES_DIR) else []
+        cloneable = (
+            sorted(
+                f
+                for f in os.listdir(VOICES_DIR)
+                if f.lower().endswith(".wav") and not f.startswith(".")
+            )
+            if os.path.exists(VOICES_DIR)
+            else []
+        )
 
         return {
             "built_in": sorted(_SPEAKERS),
@@ -311,9 +332,7 @@ class QwenEngine(BaseEngine):
         mx.random.seed(request["effective_seed"])
 
         try:
-            model = _model_cache.get_or_load(
-                model_name, lambda: load_model(Path(resolved_path))
-            )
+            model = _model_cache.get_or_load(model_name, lambda: load_model(Path(resolved_path)))
         except HTTPException:
             raise
         except Exception as e:

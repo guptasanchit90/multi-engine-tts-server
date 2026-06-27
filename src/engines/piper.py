@@ -9,9 +9,7 @@ try:
     from piper import PiperVoice
     from piper.config import SynthesisConfig
 except ImportError as exc:
-    raise ImportError(
-        "piper-tts is not installed. Run: pip install piper-tts"
-    ) from exc
+    raise ImportError("piper-tts is not installed. Run: pip install piper-tts") from exc
 
 try:
     from fastapi import HTTPException
@@ -23,9 +21,9 @@ from .base import BaseEngine, register
 MODELS_DIR = os.path.join(os.getcwd(), "models", "piper")
 
 _LENGTH_SCALE: dict[str, float] = {
-    "slow":   1.4,
+    "slow": 1.4,
     "normal": 1.0,
-    "fast":   0.75,
+    "fast": 0.75,
 }
 
 
@@ -116,7 +114,9 @@ class PiperEngine(BaseEngine):
             voice = PiperVoice.load(onnx_path)
         except Exception as e:
             print(f"[piper] Failed to load voice '{model}': {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to load Piper voice '{model}': {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to load Piper voice '{model}': {e}"
+            )
 
         wav_path = os.path.join(tmp_dir, "audio_000.wav")
         try:

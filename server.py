@@ -25,7 +25,13 @@ except ImportError:
 
 from src.audio import trim_silence, wav_to_mp3, wav_to_pcm
 from src.engines.base import discover
-from src.utils import VOICES_DIR, convert_to_wav_24k, get_audio_duration, resolve_voice, scan_wav_voices
+from src.utils import (
+    VOICES_DIR,
+    convert_to_wav_24k,
+    get_audio_duration,
+    resolve_voice,
+    scan_wav_voices,
+)
 
 import src.engines  # noqa: F401
 
@@ -33,9 +39,9 @@ ENGINES = discover()
 
 OUTPUTS_DIR = os.path.join(os.getcwd(), "outputs", "server")
 SPEED_MAP = {
-    "slow":   0.8,
+    "slow": 0.8,
     "normal": 1.0,
-    "fast":   1.3,
+    "fast": 1.3,
 }
 
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
@@ -44,11 +50,35 @@ app = FastAPI(
     title="Local TTS Server",
     description="Multi-engine, offline text-to-speech server with OpenAI-compatible endpoint.",
     version="1.0.0",
+    docs_url="/api-docs",
+    openapi_tags=[
+        {
+            "name": "text-to-speech",
+            "description": "Generate speech from text using any supported engine.",
+        },
+        {
+            "name": "models-and-voices",
+            "description": "Explore available models, voices, and engine capabilities.",
+        },
+        {
+            "name": "voice-management",
+            "description": "Upload, read, rename, and delete voice cloning samples.",
+        },
+        {
+            "name": "output-management",
+            "description": "List, retrieve, and delete previously generated audio files.",
+        },
+        {
+            "name": "system",
+            "description": "Health check and server status utilities.",
+        },
+    ],
 )
 
 # ---------------------------------------------------------------------------
 # Model manifest — built dynamically from each engine's list_models()
 # ---------------------------------------------------------------------------
+
 
 def _build_manifest() -> dict[str, dict]:
     manifest = {}
@@ -221,7 +251,12 @@ def _openai_to_internal(req: OpenAIRequest, manifest: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@app.post("/tts", summary="Generate speech", response_description="MP3 audio file")
+@app.post(
+    "/tts",
+    summary="Generate speech",
+    response_description="MP3 audio file",
+    tags=["text-to-speech"],
+)
 async def tts(req: TTSRequest):
     engine = _find_engine(req.model)
 
@@ -270,7 +305,7 @@ async def tts(req: TTSRequest):
     )
 
 
-@app.get("/models", summary="List available models")
+@app.get("/models", summary="List available models", tags=["models-and-voices"])
 def list_models():
     result = []
     for engine in ENGINES:
@@ -278,7 +313,7 @@ def list_models():
     return JSONResponse(content=result)
 
 
-@app.get("/voices", summary="List all voices grouped by engine")
+@app.get("/voices", summary="List all voices grouped by engine", tags=["models-and-voices"])
 def list_voices():
     result = {}
     for engine in ENGINES:
@@ -289,7 +324,7 @@ def list_voices():
     return JSONResponse(content=result)
 
 
-@app.delete("/outputs", summary="Delete all generated audio files")
+@app.delete("/outputs", summary="Delete all generated audio files", tags=["output-management"])
 def delete_outputs():
     deleted = []
     errors = []
@@ -313,7 +348,7 @@ def delete_outputs():
     return JSONResponse(content=response)
 
 
-@app.get("/health", summary="Health check")
+@app.get("/health", summary="Health check", tags=["system"])
 def health():
     return {"status": "ok"}
 
@@ -325,14 +360,19 @@ def health():
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024
 
 
-@app.post("/voice", summary="Upload a voice file (any audio format)")
+@app.post("/voice", summary="Upload a voice file (any audio format)", tags=["voice-management"])
 async def upload_voice(file: UploadFile = File(...), name: str | None = Form(None)):
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=422, detail=f"File exceeds {MAX_UPLOAD_SIZE // (1024*1024)} MB limit")
+        raise HTTPException(
+            status_code=422, detail=f"File exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)} MB limit"
+        )
 
     stem = name if name else (file.filename or "voice")
-    stem = "".join(c for c in stem.rsplit(".", 1)[0] if c.isalnum() or c in "-_.").rstrip(".") or "voice"
+    stem = (
+        "".join(c for c in stem.rsplit(".", 1)[0] if c.isalnum() or c in "-_.").rstrip(".")
+        or "voice"
+    )
     safe_name = stem + ".wav"
 
     target = os.path.join(VOICES_DIR, safe_name)
@@ -380,7 +420,7 @@ async def upload_voice(file: UploadFile = File(...), name: str | None = Form(Non
     }
 
 
-@app.get("/voice/{name:path}", summary="Get a voice file")
+@app.get("/voice/{name:path}", summary="Get a voice file", tags=["voice-management"])
 def get_voice(name: str):
     path = resolve_voice(name)
     if not path:
@@ -388,7 +428,7 @@ def get_voice(name: str):
     return FileResponse(path, media_type="audio/wav")
 
 
-@app.put("/voice/{name:path}", summary="Rename a voice file")
+@app.put("/voice/{name:path}", summary="Rename a voice file", tags=["voice-management"])
 def rename_voice(name: str, new_name: str):
     path = resolve_voice(name)
     if not path:
@@ -409,7 +449,7 @@ def rename_voice(name: str, new_name: str):
     return {"name": safe_new, "url": f"/voice/{safe_new}"}
 
 
-@app.delete("/voice/{name:path}", summary="Delete a voice file")
+@app.delete("/voice/{name:path}", summary="Delete a voice file", tags=["voice-management"])
 def delete_voice(name: str):
     path = resolve_voice(name)
     if not path:
@@ -421,7 +461,9 @@ def delete_voice(name: str):
     return {"deleted": name}
 
 
-@app.get("/voices/detail", summary="List all cloneable voices with metadata")
+@app.get(
+    "/voices/detail", summary="List all cloneable voices with metadata", tags=["models-and-voices"]
+)
 def list_voices_detail():
     files = scan_wav_voices(VOICES_DIR)
     result = []
@@ -430,13 +472,15 @@ def list_voices_detail():
         size = os.path.getsize(path)
         duration = get_audio_duration(path)
         created_at = os.path.getmtime(path)
-        result.append({
-            "name": f,
-            "size": size,
-            "duration": round(duration, 1),
-            "created_at": created_at,
-            "url": f"/voice/{f}",
-        })
+        result.append(
+            {
+                "name": f,
+                "size": size,
+                "duration": round(duration, 1),
+                "created_at": created_at,
+                "url": f"/voice/{f}",
+            }
+        )
     result.sort(key=lambda e: e["created_at"], reverse=True)
     return JSONResponse(content=result)
 
@@ -448,7 +492,9 @@ def list_voices_detail():
 AUDIO_EXTS = {".mp3", ".wav", ".pcm"}
 
 
-@app.get("/outputs/detail", summary="List generated outputs with metadata")
+@app.get(
+    "/outputs/detail", summary="List generated outputs with metadata", tags=["output-management"]
+)
 def list_outputs_detail():
     if not os.path.exists(OUTPUTS_DIR):
         return JSONResponse(content=[])
@@ -478,20 +524,24 @@ def list_outputs_detail():
                 pass
 
         duration = get_audio_duration(fpath) if ext in (".wav", ".mp3") else 0.0
-        entries.append({
-            "name": fname,
-            "size": size,
-            "duration": round(duration, 1),
-            "created_at": created_at,
-            "url": f"/output/{fname}",
-            "params": params,
-        })
+        entries.append(
+            {
+                "name": fname,
+                "size": size,
+                "duration": round(duration, 1),
+                "created_at": created_at,
+                "url": f"/output/{fname}",
+                "params": params,
+            }
+        )
 
     entries.sort(key=lambda e: e["created_at"], reverse=True)
     return JSONResponse(content=entries)
 
 
-@app.get("/output/{filename:path}", summary="Get a generated output file")
+@app.get(
+    "/output/{filename:path}", summary="Get a generated output file", tags=["output-management"]
+)
 def get_output(filename: str):
     fpath = os.path.join(OUTPUTS_DIR, filename)
     real = os.path.realpath(fpath)
@@ -501,11 +551,15 @@ def get_output(filename: str):
         raise HTTPException(status_code=404, detail=f"Output '{filename}' not found")
 
     ext = os.path.splitext(filename)[1].lower()
-    media_type = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".pcm": "audio/L16"}.get(ext, "application/octet-stream")
+    media_type = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".pcm": "audio/L16"}.get(
+        ext, "application/octet-stream"
+    )
     return FileResponse(real, media_type=media_type)
 
 
-@app.delete("/output/{filename:path}", summary="Delete a generated output file")
+@app.delete(
+    "/output/{filename:path}", summary="Delete a generated output file", tags=["output-management"]
+)
 def delete_output(filename: str):
     fpath = os.path.join(OUTPUTS_DIR, filename)
     real = os.path.realpath(fpath)
@@ -525,13 +579,17 @@ def delete_output(filename: str):
 # ---------------------------------------------------------------------------
 
 
-@app.get("/v1/models", summary="List available models (OpenAI-compatible)")
+@app.get(
+    "/v1/models", summary="List available models (OpenAI-compatible)", tags=["models-and-voices"]
+)
 def list_v1_models():
     manifest = _build_manifest()
     return JSONResponse(content=list(manifest.values()))
 
 
-@app.post("/v1/audio/speech", summary="Generate speech (OpenAI-compatible)")
+@app.post(
+    "/v1/audio/speech", summary="Generate speech (OpenAI-compatible)", tags=["text-to-speech"]
+)
 async def openai_speech(req: OpenAIRequest, request: Request):
     manifest = _resolve_openai_model(req.model)
 
@@ -596,7 +654,13 @@ async def openai_speech(req: OpenAIRequest, request: Request):
                         detail="WAV-to-MP3 conversion failed — is ffmpeg installed?",
                     )
 
-            params = {"model": req.model, "input": req.input, "voice": req.voice, "speed": req.speed, "seed": effective_seed}
+            params = {
+                "model": req.model,
+                "input": req.input,
+                "voice": req.voice,
+                "speed": req.speed,
+                "seed": effective_seed,
+            }
             try:
                 with open(output_path + ".json", "w") as fh:
                     json.dump(params, fh)
@@ -645,7 +709,10 @@ async def openai_speech(req: OpenAIRequest, request: Request):
         return Response(
             content=data,
             media_type=content_type,
-            headers={"X-Seed": str(effective_seed), "Content-Disposition": f'inline; filename="{filename}"'},
+            headers={
+                "X-Seed": str(effective_seed),
+                "Content-Disposition": f'inline; filename="{filename}"',
+            },
         )
 
 

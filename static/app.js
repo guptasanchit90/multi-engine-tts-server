@@ -852,4 +852,97 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     draw();
   }
+
+  // ── Curl Console ──────────────────────────────────────────────────────────
+  function buildCurlCommand() {
+    const modelId = modelSelect.value;
+    const text = textArea.value.trim();
+    if (!modelId || !text) return null;
+
+    const model = models.find((m) => m.id === modelId);
+    const caps = model ? model.capabilities || [] : [];
+
+    const body = { model: modelId, input: text, speed: parseFloat(speedInput.value) };
+
+    if (caps.includes("speaker") || caps.includes("voice_blend")) {
+      const v = speakerName.value.trim();
+      if (v) body.voice = v;
+    } else if (caps.includes("voice_prompt")) {
+      const v = voiceDesc.value.trim();
+      if (v) body.voice = v;
+    } else if (caps.includes("voice_clone")) {
+      const v = voiceFile.value.trim();
+      if (v) body.voice = v;
+    }
+
+    body.temperature = parseFloat(tempInput.value);
+    const seed = seedInput.value.trim();
+    if (seed) body.seed = parseInt(seed, 10);
+
+    const json = JSON.stringify(body, null, 2);
+    const escaped = json.replace(/'/g, "'\\''");
+
+    return [
+      "curl -X POST http://localhost:8000/v1/audio/speech \\",
+      '  -H "Content-Type: application/json" \\',
+      '  -H "X-Save-Output: true" \\',
+      "  -d '" + escaped + "' \\",
+      "  --output speech.mp3",
+    ].join("\n");
+  }
+
+  function updateCurlDisplay() {
+    const cmd = buildCurlCommand();
+    const output = document.getElementById("curl-output");
+    const badge = document.getElementById("curl-ready-badge");
+    if (cmd) {
+      output.innerHTML = escapeHtml(cmd);
+      badge.textContent = "ready";
+      badge.style.borderColor = "rgba(63,185,80,0.3)";
+      badge.style.background = "rgba(63,185,80,0.12)";
+      badge.style.color = "var(--success)";
+    } else {
+      output.innerHTML = '<span class="curl-placeholder"># Fill out the form to generate a curl command...</span>';
+      badge.textContent = "waiting";
+      badge.style.borderColor = "";
+      badge.style.background = "";
+      badge.style.color = "";
+    }
+  }
+
+  // Wire form fields
+  const curlFields = [textArea, modelSelect, speakerName, voiceDesc, voiceFile, speedInput, tempInput, seedInput, addPausesCheck];
+  curlFields.forEach((el) => {
+    el.addEventListener("input", updateCurlDisplay);
+    el.addEventListener("change", updateCurlDisplay);
+  });
+
+  // Toggle console
+  const curlToggle = document.getElementById("curl-toggle");
+  const curlBody = document.getElementById("curl-body");
+  curlToggle.addEventListener("click", () => {
+    const open = curlBody.classList.toggle("open");
+    curlToggle.classList.toggle("open");
+    curlToggle.querySelector(".curl-label").textContent = open ? "Hide curl" : "Show curl";
+  });
+
+  // Copy to clipboard
+  document.getElementById("curl-copy").addEventListener("click", async () => {
+    const text = document.getElementById("curl-output").textContent;
+    if (!text || text.startsWith("#")) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = document.getElementById("curl-copy");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+    } catch {
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+  });
 });

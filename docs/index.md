@@ -22,17 +22,13 @@
 - [Contributing Guide](../CONTRIBUTING.md) — adding engines, code style, conventions
 - [Development Setup](development.md) — environment setup, linting, testing
 
-## Tools
-
-- [Postman Collection](postman/collection.json) — pre-configured API requests
-
 ---
 
 ## Quick Links
 
 | Endpoint | Description |
 |---|---|
-| `http://localhost:8000/docs` | Interactive Swagger UI |
+| `http://localhost:8000/api-docs` | Interactive Swagger UI |
 | `http://localhost:8000/` | Web UI form |
 | `GET /health` | Health check |
 | `GET /models` | List available models |

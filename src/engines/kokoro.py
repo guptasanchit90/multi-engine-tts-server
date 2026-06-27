@@ -10,9 +10,7 @@ import soundfile as sf
 try:
     from kokoro_onnx import Kokoro
 except ImportError as exc:
-    raise ImportError(
-        "kokoro_onnx is not installed. Run: pip install kokoro-onnx"
-    ) from exc
+    raise ImportError("kokoro_onnx is not installed. Run: pip install kokoro-onnx") from exc
 
 try:
     from fastapi import HTTPException
@@ -23,7 +21,7 @@ from .base import BaseEngine, register
 
 MODELS_DIR = os.path.join(os.getcwd(), "models", "kokoro")
 
-ONNX_FILE   = "kokoro-v1.0.onnx"
+ONNX_FILE = "kokoro-v1.0.onnx"
 VOICES_FILE = "voices-v1.0.bin"
 
 _LANG_MAP: dict[str, str] = {
@@ -40,22 +38,52 @@ _LANG_MAP: dict[str, str] = {
 
 _VOICES: dict[str, list[str]] = {
     "en-us": [
-        "af_heart", "af_alloy", "af_aoede", "af_bella", "af_jessica",
-        "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
-        "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam",
-        "am_michael", "am_onyx", "am_puck", "am_santa",
+        "af_heart",
+        "af_alloy",
+        "af_aoede",
+        "af_bella",
+        "af_jessica",
+        "af_kore",
+        "af_nicole",
+        "af_nova",
+        "af_river",
+        "af_sarah",
+        "af_sky",
+        "am_adam",
+        "am_echo",
+        "am_eric",
+        "am_fenrir",
+        "am_liam",
+        "am_michael",
+        "am_onyx",
+        "am_puck",
+        "am_santa",
     ],
     "en-gb": [
-        "bf_alice", "bf_emma", "bf_isabella", "bf_lily",
-        "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
+        "bf_alice",
+        "bf_emma",
+        "bf_isabella",
+        "bf_lily",
+        "bm_daniel",
+        "bm_fable",
+        "bm_george",
+        "bm_lewis",
     ],
-    "ja":    ["jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "jm_kumo"],
-    "zh":    ["zf_xiaobei", "zf_xiaoni", "zf_xiaoxiao", "zf_xiaoyi",
-              "zm_yunjian", "zm_yunxi", "zm_yunxia", "zm_yunyang"],
-    "es":    ["ef_dora", "em_alex", "em_santa"],
+    "ja": ["jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "jm_kumo"],
+    "zh": [
+        "zf_xiaobei",
+        "zf_xiaoni",
+        "zf_xiaoxiao",
+        "zf_xiaoyi",
+        "zm_yunjian",
+        "zm_yunxi",
+        "zm_yunxia",
+        "zm_yunyang",
+    ],
+    "es": ["ef_dora", "em_alex", "em_santa"],
     "fr-fr": ["ff_siwis"],
-    "hi":    ["hf_alpha", "hf_beta", "hm_omega", "hm_psi"],
-    "it":    ["if_sara", "im_nicola"],
+    "hi": ["hf_alpha", "hf_beta", "hm_omega", "hm_psi"],
+    "it": ["if_sara", "im_nicola"],
     "pt-br": ["pf_dora", "pm_alex", "pm_santa"],
 }
 
@@ -153,16 +181,16 @@ class KokoroEngine(BaseEngine):
     def list_models(self) -> list[dict]:
         return [
             {
-                "id":          "kokoro",
-                "name":        "Kokoro 82M",
-                "engine":      "kokoro",
-                "model":       MODEL_ID,
-                "mode":        "speaker",
+                "id": "kokoro",
+                "name": "Kokoro 82M",
+                "engine": "kokoro",
+                "model": MODEL_ID,
+                "mode": "speaker",
                 "capabilities": ["speaker", "voice_blend"],
                 "description": "Fast ONNX-based TTS with 9 languages and voice blending",
-                "available":   _model_available(),
-                "voices":      {"built_in": sorted(_ALL_VOICES), "cloneable": []},
-                "languages":   sorted(set(_LANG_MAP.values())),
+                "available": _model_available(),
+                "voices": {"built_in": sorted(_ALL_VOICES), "cloneable": []},
+                "languages": sorted(set(_LANG_MAP.values())),
             }
         ]
 
@@ -197,9 +225,9 @@ class KokoroEngine(BaseEngine):
             )
 
     def generate(self, request: dict, tmp_dir: str) -> str:
-        voice  = request.get("speaker_name") or "af_heart"
-        speed  = request["speed_value"]
-        text   = request["text"]
+        voice = request.get("speaker_name") or "af_heart"
+        speed = request["speed_value"]
+        text = request["text"]
         add_pauses = request.get("add_pauses", True)
 
         voices, weights = _parse_voices(voice)

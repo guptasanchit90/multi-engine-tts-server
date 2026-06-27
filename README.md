@@ -102,7 +102,6 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 | [Docs Home](docs/index.md) | Full documentation index |
 | [Development Guide](docs/development.md) | Setup, linting, testing, Docker |
 | [Contributing](CONTRIBUTING.md) | Adding engines, code style, pull requests |
-| [Postman Collection](docs/postman/collection.json) | Pre-configured API requests |
 
 ---
 

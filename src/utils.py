@@ -9,6 +9,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 _MLX_AVAILABLE = False
 try:
     import mlx.core as mx
+
     _MLX_AVAILABLE = True
 except ImportError:
     pass
@@ -40,9 +41,13 @@ def model_path(base_dir: str, folder_name: str) -> str | None:
 
 def get_audio_duration(filepath: str) -> float:
     cmd = [
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "csv=p=0",
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "csv=p=0",
         filepath,
     ]
     try:
@@ -54,9 +59,18 @@ def get_audio_duration(filepath: str) -> float:
 
 def convert_to_wav_24k(input_path: str, output_path: str) -> bool:
     cmd = [
-        "ffmpeg", "-y", "-v", "error",
-        "-i", input_path,
-        "-ar", str(SAMPLE_RATE), "-ac", "1", "-c:a", "pcm_s16le",
+        "ffmpeg",
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        input_path,
+        "-ar",
+        str(SAMPLE_RATE),
+        "-ac",
+        "1",
+        "-c:a",
+        "pcm_s16le",
         output_path,
     ]
     try:
@@ -76,6 +90,5 @@ def scan_wav_voices(directory: str = VOICES_DIR) -> list[str]:
     if not os.path.exists(directory):
         return []
     return sorted(
-        f for f in os.listdir(directory)
-        if f.lower().endswith(".wav") and not f.startswith(".")
+        f for f in os.listdir(directory) if f.lower().endswith(".wav") and not f.startswith(".")
     )

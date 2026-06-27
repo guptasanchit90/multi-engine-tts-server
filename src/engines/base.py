@@ -22,6 +22,7 @@ class BaseEngine:
 
     def list_voices(self) -> dict:
         from src.utils import scan_wav_voices
+
         cloneable = scan_wav_voices()
         return {"cloneable": cloneable} if cloneable else {}
 

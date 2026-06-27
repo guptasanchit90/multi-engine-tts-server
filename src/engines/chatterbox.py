@@ -12,6 +12,7 @@ _MLX_AVAILABLE = False
 try:
     import mlx.core as mx
     from mlx_audio.tts.utils import load_model
+
     _MLX_AVAILABLE = True
 except ImportError:
     pass
@@ -79,7 +80,7 @@ class ChatterboxEngine(BaseEngine):
             raise HTTPException(
                 status_code=422,
                 detail="'sample_voice_file' is required for Chatterbox (voice cloning engine). "
-                       "Specify a .wav file from the voices/ directory.",
+                "Specify a .wav file from the voices/ directory.",
             )
         resolved = resolve_voice(voice_file)
         if not resolved:
@@ -125,9 +126,7 @@ class ChatterboxEngine(BaseEngine):
         mx.random.seed(request["effective_seed"])
 
         try:
-            model = _model_cache.get_or_load(
-                model_name, lambda: load_model(Path(resolved_path))
-            )
+            model = _model_cache.get_or_load(model_name, lambda: load_model(Path(resolved_path)))
         except HTTPException:
             raise
         except Exception as e:

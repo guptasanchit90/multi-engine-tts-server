@@ -1,6 +1,6 @@
 # API Reference
 
-The server listens on `http://0.0.0.0:8000` by default. Interactive docs (Swagger UI) are available at `http://localhost:8000/docs`.
+The server listens on `http://0.0.0.0:8000` by default. Interactive docs (Swagger UI) are available at `http://localhost:8000/api-docs`.
 Web UI available at `http://localhost:8000/` — a dark-themed form for all TTS parameters.
 
 All `/tts` requests return an `audio/mpeg` MP3 file.

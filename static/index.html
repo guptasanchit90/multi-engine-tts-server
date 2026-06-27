@@ -271,6 +271,80 @@
   }
   .params-value.long-text { max-height: 300px; }
   .player-dl { color:var(--accent); text-decoration:none; font-size:0.75rem; flex-shrink:0; }
+
+  /* Curl console */
+  .curl-console {
+    flex-shrink: 0;
+    margin-top: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .curl-toggle {
+    width: 100%;
+    padding: 0.5rem 1rem;
+    background: var(--surface);
+    border: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 0.15s;
+  }
+  .curl-toggle:hover { background: rgba(255,255,255,0.03); }
+  .curl-arrow {
+    display: inline-block;
+    font-size: 0.65rem;
+    transition: transform 0.2s;
+    color: var(--muted);
+  }
+  .curl-toggle.open .curl-arrow { transform: rotate(90deg); }
+  .curl-label { flex: 1; }
+  .curl-badge {
+    font-size: 0.65rem;
+    padding: 0.125rem 0.4rem;
+    border-radius: 4px;
+    background: var(--badge-bg);
+    color: var(--accent);
+    border: 1px solid var(--badge-border);
+  }
+  .curl-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+    background: var(--surface);
+    border-top: 0 solid var(--border);
+  }
+  .curl-body.open {
+    max-height: 600px;
+    border-top-width: 1px;
+  }
+  .curl-body pre {
+    margin: 0;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  .curl-body code {
+    color: var(--text);
+    white-space: pre;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  }
+  .curl-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0 1rem 1rem;
+  }
+  .curl-placeholder {
+    color: var(--muted);
+    font-style: italic;
+  }
 </style>
 </head>
 <body>
@@ -279,6 +353,7 @@
   <div class="header">
     <h1>TTS Server</h1>
     <span class="subtitle">Multi-engine text-to-speech</span>
+    <a href="/api-docs" target="_blank" style="margin-left:auto;font-size:0.8rem;color:var(--accent);text-decoration:none;white-space:nowrap">API Docs</a>
   </div>
 
   <div class="panels">
@@ -399,6 +474,21 @@
         </div>
       </div>
       <div class="panel-body" id="output-panel"></div>
+    </div>
+  </div>
+
+  <!-- ===== Curl Console ===== -->
+  <div class="curl-console">
+    <button class="curl-toggle" id="curl-toggle">
+      <span class="curl-arrow">&#9654;</span>
+      <span class="curl-label">Show curl</span>
+      <span class="curl-badge" id="curl-ready-badge">waiting</span>
+    </button>
+    <div class="curl-body" id="curl-body">
+      <pre><code id="curl-output"><span class="curl-placeholder"># Fill out the form to generate a curl command...</span></code></pre>
+      <div class="curl-actions">
+        <button class="btn btn-sm btn-ghost" id="curl-copy">Copy</button>
+      </div>
     </div>
   </div>
 </div>
