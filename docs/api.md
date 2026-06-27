@@ -1,6 +1,7 @@
 # API Reference
 
 The server listens on `http://0.0.0.0:8000` by default. Interactive docs (Swagger UI) are available at `http://localhost:8000/docs`.
+Web UI available at `http://localhost:8000/` — a dark-themed form for all TTS parameters.
 
 All `/tts` requests return an `audio/mpeg` MP3 file.
 
@@ -22,6 +23,7 @@ The engine is selected automatically based on the `model` field.
 | `speed` | string | `"normal"` | `"slow"` · `"normal"` · `"fast"` |
 | `temperature` | float | `0.0` | `0` = deterministic; `0.7` = natural variation (Qwen only) |
 | `seed` | integer | auto | Fix for reproducible output; echoed in `X-Seed` response header |
+| `add_pauses` | boolean | `true` | Insert silence for punctuation (`.`, `,`, `?`, `!`, newlines) |
 
 ### Response
 
@@ -42,6 +44,7 @@ The engine is selected automatically based on the `model` field.
 | `kokoro-v1.0` | Kokoro | `speaker_name` (optional, defaults to `af_heart`) |
 | `en_US-lessac-medium` | Piper | *(none — model IS the voice)* |
 | `<any piper voice stem>` | Piper | *(none)* |
+| `chatterbox-turbo-fp16` | Chatterbox | `sample_voice_file` (required) |
 
 ### Examples
 
@@ -150,6 +153,81 @@ curl http://localhost:8000/voices
     "en_GB": ["en_GB-alba-medium"]
   }
 }
+```
+
+---
+
+## GET /v1/models — List Available Models (OpenAI-compatible)
+
+Returns the model manifest with friendly aliases, capabilities, and on-disk availability.
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+```json
+[
+  {"id": "kokoro", "name": "Kokoro 82M", "engine": "kokoro", "capabilities": ["speaker", "voice_blend"], "available": true, ...},
+  {"id": "qwen-voice", "name": "Qwen3 Pro Voice Design", "engine": "qwen", "capabilities": ["voice_prompt"], "available": true, ...},
+  {"id": "qwen-clone", "name": "Qwen3 Pro Voice Clone", "engine": "qwen", "capabilities": ["voice_clone"], "available": true, ...}
+]
+```
+
+---
+
+## POST /v1/audio/speech — Generate Speech (OpenAI-compatible)
+
+Follows the [OpenAI TTS API](https://platform.openai.com/docs/api-reference/audio/createSpeech) format.
+
+### Request Body (JSON)
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `model` | string | **required** | Alias from `/v1/models` (e.g. `kokoro`, `qwen-voice`, `qwen-clone`) |
+| `input` | string | **required** | Text to synthesize (max 4096 chars) |
+| `voice` | string | `null` | Maps to `speaker_name`, `voice_description`, or `sample_voice_file` depending on model capabilities |
+| `response_format` | string | `"mp3"` | `mp3` · `wav` · `pcm` |
+| `speed` | number | `1.0` | `0.25` – `4.0` |
+
+### Voice field mapping
+
+| Model capability | `voice` maps to |
+|---|---|
+| `speaker` / `voice_blend` | Speaker name (e.g. `af_heart`, `Vivian`) |
+| `voice_prompt` | Voice description (e.g. `"A warm, deep voice"`) |
+| `voice_clone` | WAV filename in `voices/` (e.g. `my_voice.wav`) |
+
+### Response
+
+- **Success:** Audio file with `Content-Type: audio/mpeg` (or `audio/wav`, `audio/L16`)
+- **Header:** `X-Seed: <integer>` — the seed used
+- **Error:** JSON `{"detail": "..."}`
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "kokoro",
+    "input": "Hello from the OpenAI-compatible endpoint!",
+    "voice": "af_bella",
+    "speed": 1.0
+  }' --output speech.mp3
+```
+
+---
+
+## DELETE /outputs — Delete Generated Audio
+
+Delete all MP3 files from `outputs/server/`. Returns count and filenames of deleted files.
+
+```bash
+curl -X DELETE http://localhost:8000/outputs
+```
+
+```json
+{"deleted": 5, "files": ["abc123.mp3", "def456.mp3", ...]}
 ```
 
 ---

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTS Server</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --badge-bg: rgba(88,166,255,0.12);
+    --badge-border: rgba(88,166,255,0.3);
+    --danger: #f85149;
+    --success: #3fb950;
+    --warning: #d29922;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .container { max-width: 1400px; width: 100%; display: flex; flex-direction: column; }
+
+  /* Header */
+  .header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-shrink: 0; }
+  .header h1 { font-size: 1.25rem; font-weight: 600; white-space: nowrap; }
+  .header .subtitle { color: var(--muted); font-size: 0.8rem; flex: 1; }
+
+  /* Three-panel grid */
+  .panels { display: grid; grid-template-columns: 280px 1fr 280px; gap: 1rem; flex: 1; min-height: 0; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .panel-body { flex: 1; overflow-y: auto; padding: 0.5rem; }
+
+  /* Buttons */
+  .btn {
+    padding: 0.5rem 1rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+  .btn-danger { background: var(--danger); }
+  .btn-danger:hover { background: #da3633; }
+  .btn-ghost {
+    background: none; border: 1px solid var(--border); color: var(--text);
+  }
+  .btn-ghost:hover { background: var(--badge-bg); border-color: var(--accent); }
+
+  /* Item list */
+  .item {
+    padding: 0.5rem; border-radius: 6px;
+    transition: background 0.1s;
+    cursor: default;
+  }
+  .item:hover { background: rgba(255,255,255,0.03); }
+
+  /* Shared audio player row */
+  .player-main {
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .player-play-btn {
+    background: none; border: none; cursor: pointer;
+    padding: 0.25rem; border-radius: 4px;
+    font-size: 0.875rem; line-height: 1;
+    color: var(--success); flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+  }
+  .player-play-btn:hover { background: rgba(63,185,80,0.15); }
+  .player-play-btn.playing { color: var(--danger) !important; }
+  .player-play-btn.playing:hover { background: rgba(248,81,73,0.1); }
+
+  .player-info { flex: 1; min-width: 0; }
+  .player-title { font-size: 0.8125rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .player-meta { font-size: 0.6875rem; color: var(--muted); }
+  .player-date { font-size: 0.625rem; color: var(--muted); opacity: 0.65; }
+
+  .player-actions { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+  .player-actions .icon-btn {
+    background: none; border: none; cursor: pointer;
+    padding: 0.25rem; border-radius: 4px;
+    font-size: 0.875rem; line-height: 1;
+    color: var(--muted); transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .player-actions .icon-btn:hover { color: var(--text); background: var(--badge-bg); }
+  .player-actions .icon-btn.danger:hover { color: var(--danger); background: rgba(248,81,73,0.1); }
+
+  /* Seeker bar */
+  .player-seeker {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin-top: 0.35rem; padding-left: 1.75rem;
+  }
+  .seeker-track {
+    flex: 1; height: 4px; background: var(--border); border-radius: 2px;
+    cursor: pointer; position: relative;
+  }
+  .seeker-track:hover { height: 6px; }
+  .seeker-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    width: 0%; pointer-events: none;
+  }
+  .seeker-time { font-size: 0.625rem; color: var(--muted); white-space: nowrap; min-width: 70px; text-align: right; }
+
+  /* Inline rename */
+  .name-edit {
+    background: var(--bg); border: 1px solid var(--accent);
+    border-radius: 4px; color: var(--text); font-size: 0.8125rem;
+    padding: 0.125rem 0.25rem; width: 100%;
+    font-family: inherit;
+  }
+
+  /* Form elements */
+  textarea, input, select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  textarea:focus, input:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  .form-group { margin-bottom: 0.75rem; }
+  .form-group:last-child { margin-bottom: 0; }
+  .form-group label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.25rem; }
+  input[type="range"] {
+    padding: 0; border: none; background: none;
+    accent-color: var(--accent);
+  }
+  .row { display: flex; gap: 0.75rem; }
+  .row > * { flex: 1; }
+  .voice-field { display: none; }
+  .voice-field.active { display: block; }
+  .voice-hint { font-size: 0.6875rem; color: var(--muted); margin-top: 0.125rem; }
+  .checkbox-group { display: flex; align-items: center; gap: 0.5rem; }
+  .checkbox-group input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+  .checkbox-group label { margin-bottom: 0; cursor: pointer; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; z-index: 100;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; max-width: 460px; width: 90%;
+    padding: 1.5rem; max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 1rem; font-weight: 500; margin-bottom: 1rem; }
+  .modal-tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  .modal-tab {
+    padding: 0.5rem 1rem; background: none; border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted); font-size: 0.8125rem; cursor: pointer;
+    font-family: inherit;
+  }
+  .modal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .modal-tab-content { display: none; }
+  .modal-tab-content.active { display: block; }
+
+  /* Output params */
+  .params { font-size: 0.6875rem; color: var(--muted); padding: 0.25rem 0 0 0; }
+  .params code { background: var(--bg); padding: 0.125rem 0.25rem; border-radius: 3px; }
+
+  /* Playing indicator */
+  .playing { color: var(--success) !important; }
+
+  /* Status message */
+  .status-msg { font-size: 0.75rem; padding: 0.25rem 0; display: none; }
+  .status-msg.show { display: block; }
+  .status-msg.success { color: var(--success); }
+  .status-msg.error { color: var(--danger); }
+
+  /* Empty state */
+  .empty { color: var(--muted); font-size: 0.8125rem; text-align: center; padding: 1.5rem 0; }
+
+  /* Current playing */
+  .current-playing { font-size: 0.75rem; color: var(--success); padding: 0.25rem 0.5rem; }
+
+  /* Responsive */
+  @media (max-width: 960px) {
+    .panels { grid-template-columns: 1fr; }
+    .panel { max-height: 300px; }
+    .header .subtitle { display: none; }
+  }
+
+  /* Scrollbar */
+  .panel-body::-webkit-scrollbar { width: 6px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .range-label { display: flex; justify-content: space-between; font-size: 0.6875rem; color: var(--muted); }
+  .params-field { margin-bottom: 0.75rem; }
+  .params-field:last-child { margin-bottom: 0; }
+  .params-label { font-size: 0.6875rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.25rem; }
+  .params-value {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.5rem 0.75rem; white-space: pre-wrap; word-break: break-word;
+    max-height: 200px; overflow-y: auto;
+  }
+  .params-value.long-text { max-height: 300px; }
+  .player-dl { color:var(--accent); text-decoration:none; font-size:0.75rem; flex-shrink:0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>TTS Server</h1>
+    <span class="subtitle">Multi-engine text-to-speech</span>
+  </div>
+
+  <div class="panels">
+
+    <!-- ===== Left Panel: Voices ===== -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Voices</span>
+        <button class="btn btn-sm" id="add-voice-btn">+ Add</button>
+      </div>
+      <div class="panel-body" id="voice-panel"></div>
+    </div>
+
+    <!-- ===== Center Panel: Generate ===== -->
+    <div class="panel">
+      <div class="panel-header"><span>Generate Speech</span></div>
+      <div class="panel-body">
+        <form id="tts-form">
+          <div class="form-group">
+            <label for="text">Text *</label>
+            <textarea id="text" placeholder="Enter text to synthesize..." required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="model">Model *</label>
+            <select id="model" required>
+              <option value="">— Select a model —</option>
+            </select>
+            <div class="voice-hint" id="model-desc"></div>
+          </div>
+
+          <div class="voice-field" id="voice-speaker">
+            <div class="form-group">
+              <label for="speaker_name">Speaker Name</label>
+              <input id="speaker_name" placeholder="e.g. af_heart, Vivian" list="cloneable-voices" autocomplete="off">
+              <datalist id="cloneable-voices"></datalist>
+              <div class="voice-hint" id="speaker-hint"></div>
+            </div>
+          </div>
+
+          <div class="voice-field" id="voice-prompt">
+            <div class="form-group">
+              <label for="voice_description">Voice Description</label>
+              <textarea id="voice_description" placeholder="Describe the voice..." rows="2"></textarea>
+            </div>
+          </div>
+
+          <div class="voice-field" id="voice-clone">
+            <div class="form-group">
+              <label for="sample_voice_file">Sample Voice File</label>
+              <input id="sample_voice_file" placeholder="e.g. my_voice.wav" list="cloneable-voices" autocomplete="off">
+              <div class="voice-hint" id="clone-hint"></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="form-group">
+              <label for="speed">Speed</label>
+              <input type="range" id="speed" min="0.25" max="4.0" step="0.25" value="1.0">
+              <div class="range-label"><span>0.25x</span><span id="speed-value">1.0x</span><span>4.0x</span></div>
+            </div>
+            <div class="form-group">
+              <label for="temperature">Temperature</label>
+              <input type="range" id="temperature" min="0" max="2" step="0.1" value="0">
+              <div class="range-label"><span>0</span><span id="temp-value">0.0</span><span>2</span></div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="form-group">
+              <label for="seed">Seed (blank = random)</label>
+              <input type="number" id="seed" placeholder="Random" min="0">
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group" style="margin-top:1.25rem">
+                <input type="checkbox" id="add_pauses" checked>
+                <label for="add_pauses">Punctuation pauses</label>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn" id="generate-btn">
+            <span class="spinner"></span>
+            Generate
+          </button>
+          <div class="status-msg" id="gen-status"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ===== Right Panel: Outputs ===== -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>Outputs</span>
+        <button class="btn btn-sm btn-ghost" id="clear-outputs-btn" title="Delete all">Clear</button>
+      </div>
+      <div class="panel-body" id="output-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Add Voice Modal ===== -->
+<div class="modal-overlay" id="add-voice-modal">
+  <div class="modal">
+    <h2>Add Voice</h2>
+
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-mtab="upload">Upload File</button>
+      <button class="modal-tab" data-mtab="record">Record Audio</button>
+    </div>
+
+    <div class="modal-tab-content active" id="mtab-upload">
+      <form id="upload-form">
+        <div class="form-group">
+          <label for="voice-file">Audio File (any format)</label>
+          <input type="file" id="voice-file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm">
+        </div>
+        <div class="form-group">
+          <label for="voice-name">Name (optional, defaults to filename)</label>
+          <input type="text" id="voice-name" placeholder="e.g. my_voice">
+        </div>
+        <button type="submit" class="btn" id="upload-btn">Upload</button>
+        <div class="status-msg" id="upload-status"></div>
+      </form>
+    </div>
+
+    <div class="modal-tab-content" id="mtab-record">
+      <form id="record-form">
+        <div class="form-group">
+          <label for="voice-name-record">Name</label>
+          <input type="text" id="voice-name-record" placeholder="e.g. my_recorded_voice" required>
+        </div>
+        <div class="form-group">
+          <button type="button" class="btn btn-ghost" id="record-btn">Start Recording</button>
+          <button type="button" class="btn btn-sm" id="stop-record-btn" style="display:none">Stop & Upload</button>
+          <div style="margin-top:0.5rem">
+            <canvas id="recording-wave" width="380" height="60" style="width:100%;height:60px;background:var(--bg);border-radius:6px;display:none"></canvas>
+          </div>
+        </div>
+        <div class="status-msg" id="record-status"></div>
+      </form>
+    </div>
+
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn btn-ghost" id="close-modal-btn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Params Modal ===== -->
+<div class="modal-overlay" id="params-modal">
+  <div class="modal" style="max-width:560px">
+    <h2 style="margin-bottom:0.5rem">Generation Details</h2>
+    <div id="params-player" style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:var(--bg);border-radius:6px;margin-bottom:1rem"></div>
+    <div id="params-content" style="font-size:0.8125rem;line-height:1.6"></div>
+    <div id="params-regen-status" class="status-msg" style="margin-top:0.5rem"></div>
+    <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end">
+      <button class="btn btn-ghost" id="close-params-btn">Close</button>
+      <button class="btn" id="regen-btn">Regenerate</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

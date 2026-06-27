@@ -19,21 +19,13 @@ try:
 except ImportError as exc:
     raise ImportError("fastapi is not installed. Run: pip install fastapi") from exc
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
+from .base import BaseEngine, register
 
 MODELS_DIR = os.path.join(os.getcwd(), "models", "kokoro")
 
-# Model files expected inside MODELS_DIR
 ONNX_FILE   = "kokoro-v1.0.onnx"
 VOICES_FILE = "voices-v1.0.bin"
 
-# Voice name → lang code passed to kokoro-onnx
-# First letter of the voice name encodes language:
-#   a = American English,  b = British English,  j = Japanese
-#   z = Mandarin Chinese,  e = Spanish,           f = French
-#   h = Hindi,             i = Italian,            p = Brazilian Portuguese
 _LANG_MAP: dict[str, str] = {
     "a": "en-us",
     "b": "en-gb",
@@ -46,7 +38,6 @@ _LANG_MAP: dict[str, str] = {
     "p": "pt-br",
 }
 
-# All v1.0 voices from VOICES.md, keyed by the lang code from _LANG_MAP
 _VOICES: dict[str, list[str]] = {
     "en-us": [
         "af_heart", "af_alloy", "af_aoede", "af_bella", "af_jessica",
@@ -70,13 +61,8 @@ _VOICES: dict[str, list[str]] = {
 
 _ALL_VOICES: set[str] = {v for vs in _VOICES.values() for v in vs}
 
-# The single model identifier the server uses to route to this engine
 MODEL_ID = "kokoro-v1.0"
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _onnx_path() -> str:
     return os.path.join(MODELS_DIR, ONNX_FILE)
@@ -91,18 +77,10 @@ def _model_available() -> bool:
 
 
 def _parse_voices(voice_input: str) -> tuple[list[str], list[float] | None]:
-    """
-    Parse voice input that can be:
-      - Single voice: "af_heart"
-      - Multiple voices: "af_heart,am_michael"
-      - Weighted voices: "af_heart:0.6,am_michael:0.4"
-    
-    Returns (voices, weights) where weights is None for equal blend.
-    """
     parts = [p.strip() for p in voice_input.split(",")]
     voices = []
     weights = []
-    
+
     for part in parts:
         if ":" in part:
             voice, weight = part.rsplit(":", 1)
@@ -113,14 +91,13 @@ def _parse_voices(voice_input: str) -> tuple[list[str], list[float] | None]:
                 weights.append(float(weight.strip()))
         else:
             voices.append(part)
-    
+
     if weights and len(weights) == len(voices):
         return voices, weights
     return voices, None
 
 
 def _all_same_lang(voices: list[str]) -> bool:
-    """Check if all voices share the same language prefix."""
     if not voices:
         return True
     prefixes = {v[0] for v in voices}
@@ -128,17 +105,11 @@ def _all_same_lang(voices: list[str]) -> bool:
 
 
 def _lang_for_voice(voice: str) -> str:
-    """Derive the language code from the voice name prefix."""
     prefix = voice[0] if voice else "a"
     return _LANG_MAP.get(prefix, "en-us")
 
 
 def _add_pauses(text: str, sample_rate: int) -> np.ndarray:
-    """
-    Insert silence into audio based on punctuation in text.
-    
-    Returns silence array to append between segments.
-    """
     PAUSE_MAP = {
         ".": 0.5,
         "...": 1.2,
@@ -170,26 +141,11 @@ def _add_pauses(text: str, sample_rate: int) -> np.ndarray:
     return np.zeros(int(sample_rate * total_silence), dtype=np.float32)
 
 
-# ---------------------------------------------------------------------------
-# Engine
-# ---------------------------------------------------------------------------
-
-class KokoroEngine:
-    """
-    TTS engine wrapping Kokoro-82M via kokoro-onnx (ONNX Runtime).
-
-    Model files required in models/kokoro/:
-      - kokoro-v1.0.onnx   (~300 MB)
-      - voices-v1.0.bin
-
-    Download from:
-      https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0
-
-    Kokoro supports custom voices, speed control, and 9 languages.
-    It does NOT support voice cloning or voice design.
-    """
-
-    # --- TTSEngine protocol ---
+@register
+class KokoroEngine(BaseEngine):
+    @property
+    def engine_name(self) -> str:
+        return "kokoro"
 
     def claims(self, model: str) -> bool:
         return model == MODEL_ID
@@ -205,7 +161,6 @@ class KokoroEngine:
         ]
 
     def list_voices(self) -> dict:
-        """Return all built-in Kokoro voices grouped by BCP-47 language code."""
         return {lang: sorted(voices) for lang, voices in _VOICES.items()}
 
     def validate(self, request: dict) -> None:
@@ -236,9 +191,8 @@ class KokoroEngine:
             )
 
     def generate(self, request: dict, tmp_dir: str) -> str:
-        """Run inference and write audio_000.wav into tmp_dir."""
         voice  = request.get("speaker_name") or "af_heart"
-        speed  = request["speed_value"]   # float, resolved by server
+        speed  = request["speed_value"]
         text   = request["text"]
         add_pauses = request.get("add_pauses", True)
 
@@ -269,6 +223,7 @@ class KokoroEngine:
                 lang=lang,
             )
         except Exception as e:
+            print(f"[kokoro] Generation failed: {e}")
             raise HTTPException(status_code=500, detail=f"Kokoro generation failed: {e}")
 
         samples = np.array(samples)

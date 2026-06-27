@@ -1,68 +1,38 @@
 from typing import Protocol
 
+_REGISTRY: list[type] = []
 
-class TTSEngine(Protocol):
-    """
-    Interface every TTS engine must satisfy.
 
-    Adding a new engine:
-      1. Create src/engines/<name>.py and implement this protocol.
-      2. Register an instance in server.py's ENGINES dict.
+def register(cls):
+    _REGISTRY.append(cls)
+    return cls
 
-    The engine is responsible for:
-      - Knowing which model identifiers it owns (claims()).
-      - Validating engine-specific fields in the request before generation.
-      - Running inference and returning a path to a WAV file inside tmp_dir.
-      - Cleaning up any resources it allocates (models, scratch files, etc.).
 
-    The server handles everything else: temp dir lifecycle, WAV→MP3 conversion,
-    response streaming, seed echoing.
-    """
+def discover() -> list:
+    return [cls() for cls in _REGISTRY]
 
-    def claims(self, model: str) -> bool:
-        """Return True if this engine handles the given model identifier."""
-        ...
 
-    def list_models(self) -> list[dict]:
-        """
-        Return metadata for all models this engine knows about.
-        Each dict must contain at minimum:
-          { "engine": str, "model": str, "mode": str, "available": bool }
-        """
-        ...
+class BaseEngine:
+    @property
+    def engine_name(self) -> str:
+        name = type(self).__name__
+        if name.endswith("Engine"):
+            name = name[:-6]
+        return name.lower()
 
     def list_voices(self) -> dict:
-        """
-        Return all voices this engine exposes, structured by category.
+        from src.utils import scan_wav_voices
+        cloneable = scan_wav_voices()
+        return {"cloneable": cloneable} if cloneable else {}
 
-        Must return a dict of { category_label: [voice_id, ...] }.
-        Categories are engine-defined — examples:
-          - Built-in speaker groups: "American English", "British English", ...
-          - Cloneable WAV files: "Cloneable voices"
 
-        Return {} if the engine has no voices.
-        """
-        ...
+class TTSEngine(Protocol):
+    def claims(self, model: str) -> bool: ...
 
-    def validate(self, request: dict) -> None:
-        """
-        Validate engine-specific fields in the decoded request dict.
-        Raise fastapi.HTTPException(status_code=422, ...) on any error.
-        Called before generate() so heavy model loading is never reached on
-        bad input.
-        """
-        ...
+    def list_models(self) -> list[dict]: ...
 
-    def generate(self, request: dict, tmp_dir: str) -> str:
-        """
-        Run inference and write the output audio as `audio_000.wav` inside
-        tmp_dir.  Return the full path to that WAV file.
+    def list_voices(self) -> dict: ...
 
-        The request dict contains all fields from TTSRequest (text, model,
-        speaker_name, voice_description, sample_voice_file, speed, seed,
-        temperature) already validated by the server's Pydantic model and by
-        validate().
+    def validate(self, request: dict) -> None: ...
 
-        Raise fastapi.HTTPException on any runtime error.
-        """
-        ...
+    def generate(self, request: dict, tmp_dir: str) -> str: ...
