@@ -428,6 +428,9 @@ def get_voice(name: str):
     path = resolve_voice(name)
     if not path:
         raise HTTPException(status_code=404, detail=f"Voice '{name}' not found")
+    real = os.path.realpath(path)
+    if not real.startswith(os.path.realpath(VOICES_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
     return FileResponse(path, media_type="audio/wav")
 
 
@@ -436,6 +439,9 @@ def rename_voice(name: str, new_name: str):
     path = resolve_voice(name)
     if not path:
         raise HTTPException(status_code=404, detail=f"Voice '{name}' not found")
+    real = os.path.realpath(path)
+    if not real.startswith(os.path.realpath(VOICES_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
 
     safe_new = "".join(c for c in new_name if c.isalnum() or c in "-_.").rstrip(".") or "voice"
     if not safe_new.endswith(".wav"):
@@ -457,6 +463,9 @@ def delete_voice(name: str):
     path = resolve_voice(name)
     if not path:
         raise HTTPException(status_code=404, detail=f"Voice '{name}' not found")
+    real = os.path.realpath(path)
+    if not real.startswith(os.path.realpath(VOICES_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
     os.remove(path)
     embedding = path + ".npy"
     if os.path.exists(embedding):
@@ -598,19 +607,23 @@ async def openai_speech(req: OpenAIRequest, request: Request):
 
     caps = manifest.get("capabilities", [])
 
-    if not req.voice and ("voice_clone" in caps or "voice_prompt" in caps):
-        detail_parts = []
+    if not req.voice:
         if "voice_clone" in caps:
-            detail_parts.append(
+            detail = (
                 "'voice' is required for voice cloning models. "
                 "Specify a .wav filename from the voices/ directory."
             )
-        if "voice_prompt" in caps:
-            detail_parts.append(
+        elif "voice_prompt" in caps:
+            detail = (
                 "'voice' is required for voice design models. "
                 "Specify a natural language voice description."
             )
-        raise HTTPException(status_code=422, detail=" ".join(detail_parts))
+        else:
+            detail = (
+                "'voice' is required. "
+                "Specify a voice name from the available voices."
+            )
+        raise HTTPException(status_code=422, detail=detail)
 
     request_dict = _openai_to_internal(req, manifest)
 
@@ -657,6 +670,10 @@ async def openai_speech(req: OpenAIRequest, request: Request):
                         detail="WAV-to-MP3 conversion failed — is ffmpeg installed?",
                     )
 
+            real_out = os.path.realpath(output_path)
+            if not real_out.startswith(os.path.realpath(OUTPUTS_DIR)):
+                raise HTTPException(status_code=500, detail="Output path outside allowed directory")
+
             params = {
                 "model": req.model,
                 "input": req.input,
@@ -690,7 +707,11 @@ async def openai_speech(req: OpenAIRequest, request: Request):
                         status_code=500,
                         detail="WAV-to-MP3 conversion failed — is ffmpeg installed?",
                     )
-
+            # read into memory before cleanup removes tmp_dir
+            with open(output_path, "rb") as f:
+                response_data = f.read()
+            response_content_type = content_type
+            response_filename = filename
     except HTTPException:
         raise
     except Exception as e:
@@ -707,14 +728,12 @@ async def openai_speech(req: OpenAIRequest, request: Request):
             headers={"X-Seed": str(effective_seed)},
         )
     else:
-        with open(output_path, "rb") as f:
-            data = f.read()
         return Response(
-            content=data,
-            media_type=content_type,
+            content=response_data,
+            media_type=response_content_type,
             headers={
                 "X-Seed": str(effective_seed),
-                "Content-Disposition": f'inline; filename="{filename}"',
+                "Content-Disposition": f'inline; filename="{response_filename}"',
             },
         )
 
