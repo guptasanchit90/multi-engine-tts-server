@@ -1,16 +1,18 @@
 # Piper Engine
 
-[Piper](https://github.com/rhasspy/piper) is a fast, local neural TTS engine using ONNX Runtime. Each voice is a separate ~80 MB model file. It offers the widest language coverage of the three engines and the fastest inference.
+[Piper](https://github.com/rhasspy/piper) — the speed king. Each voice is a separate ~80 MB ONNX model. 40+ languages. Blazing fast.
 
-> Piper voices work on Apple Silicon, x86, and Linux. They can run inside Docker without performance loss.
+> Piper runs everywhere: Apple Silicon, x86, Linux, Docker. No GPU needed.
 
 ---
 
 ## Model Download
 
-Each voice requires two files (`.onnx` and `.onnx.json`) in `models/piper/`. Use the built-in downloader (with venv active):
+Each voice needs two files (`.onnx` + `.onnx.json`) in `models/piper/`. Use the built-in downloader:
 
 ```bash
+source venv/bin/activate
+
 # English (US)
 python -m piper.download_voices --download-dir models/piper en_US-lessac-medium
 
@@ -35,15 +37,15 @@ models/
     └── en_GB-alba-medium.onnx.json
 ```
 
-New voices are picked up immediately without restarting the server.
+New voices appear instantly — no restart needed.
 
-Browse all 40+ supported languages: [huggingface.co/rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)
+Browse all voices: [huggingface.co/rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices)
 
 ---
 
-## Example Request
+## Try it
 
-The `model` field is the exact voice stem (filename without `.onnx`):
+The `model` field is the voice stem (filename without `.onnx`):
 
 ```bash
 curl -X POST http://localhost:8000/tts \
@@ -56,28 +58,28 @@ curl -X POST http://localhost:8000/tts \
   --output speech.mp3
 ```
 
-No `speaker_name` needed — each Piper model file is already a single voice.
+No `speaker_name` needed — each Piper file is one voice.
 
 ---
 
-## Voice Naming Convention
+## Voice naming
 
-Piper voice names follow the pattern `<lang_locale>-<voice>-<quality>`:
+Piper voices follow `<locale>-<voice>-<quality>`:
 
-| Quality | File size | Use case |
+| Quality | Size | Use for |
 |---|---|---|
-| `low` | ~30 MB | Fastest, smallest |
-| `medium` | ~65 MB | Good balance |
+| `low` | ~30 MB | Speed runs |
+| `medium` | ~65 MB | Daily driver |
 | `high` | ~130 MB | Best quality |
-| `x_low` | ~12 MB | Embedded / edge |
+| `x_low` | ~12 MB | Embedded / edge devices |
 
 Examples: `en_US-lessac-medium`, `de_DE-thorsten-low`, `fr_FR-siwis-medium`
 
 ---
 
-## Speed Control
+## Speed
 
-Piper uses `length_scale` internally (longer duration = slower speech):
+Piper uses `length_scale` internally (longer = slower):
 
 | Value | `length_scale` | Effective speed |
 |---|---|---|
@@ -92,14 +94,14 @@ Piper uses `length_scale` internally (longer duration = slower speech):
 - No voice cloning
 - No voice design
 - `temperature` and `seed` have no effect (ONNX is deterministic)
-- Each voice file is a single speaker — no multi-speaker models
+- One voice per model file — no multi-speaker models
 
 ---
 
 ## Troubleshooting
 
-| Issue | Fix |
+| Problem | Fix |
 |---|---|
-| `Piper voice not found` | Run the download command above, check `GET /models` |
-| Voice not appearing after download | Verify both `.onnx` and `.onnx.json` exist in `models/piper/` |
-| Poor audio quality | Use `medium` or `high` quality instead of `low` |
+| Voice not found | Run the download command, check `GET /models` |
+| Voice not appearing | Verify both `.onnx` and `.onnx.json` exist |
+| Low quality audio | Use `medium` or `high` instead of `low` |

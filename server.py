@@ -47,8 +47,11 @@ SPEED_MAP = {
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 app = FastAPI(
-    title="Local TTS Server",
-    description="Multi-engine, offline text-to-speech server with OpenAI-compatible endpoint.",
+    title="Sonus",
+    description=(
+        "Sonus — Speak freely. Multi-engine, offline text-to-speech server "
+        "with OpenAI-compatible endpoint."
+    ),
     version="1.0.0",
     docs_url="/api-docs",
     openapi_tags=[

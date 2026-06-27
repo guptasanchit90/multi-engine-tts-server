@@ -1,4 +1,4 @@
-# Documentation
+# Sonus Docs
 
 [← Back to README](../README.md)
 
@@ -6,32 +6,32 @@
 
 ## API Reference
 
-- [Full API Reference](api.md) — all endpoints, request/response schemas, examples
+- [Full API Reference](api.md) — every endpoint, every field, every curl example
 
 ## Engines
 
-| Engine | Type | Doc |
+| Engine | Type | What it's good at |
 |---|---|---|
-| **Qwen3** | MLX (Apple Silicon) | [Guide](engines/qwen.md) |
-| **Kokoro** | ONNX | [Guide](engines/kokoro.md) |
-| **Piper** | ONNX | [Guide](engines/piper.md) |
-| **Chatterbox Turbo** | MLX (Apple Silicon) | [Guide](engines/chatterbox.md) |
+| **Qwen3** | MLX (Apple Silicon) | [Premium quality, voice design, voice cloning](engines/qwen.md) |
+| **Kokoro** | ONNX | [54 voices, 9 languages, fast](engines/kokoro.md) |
+| **Piper** | ONNX | [100+ languages, blazing fast, tiny models](engines/piper.md) |
+| **Chatterbox Turbo** | MLX (Apple Silicon) | [Best-in-class voice cloning](engines/chatterbox.md) |
 
 ## Development
 
-- [Contributing Guide](../CONTRIBUTING.md) — adding engines, code style, conventions
-- [Development Setup](development.md) — environment setup, linting, testing
+- [Contributing Guide](../CONTRIBUTING.md) — add a new engine, fix a bug, write better docs
+- [Development Setup](development.md) — get your environment ready
 
 ---
 
 ## Quick Links
 
-| Endpoint | Description |
+| Endpoint | What it does |
 |---|---|
-| `http://localhost:8000/api-docs` | Interactive Swagger UI |
-| `http://localhost:8000/` | Web UI form |
-| `GET /health` | Health check |
-| `GET /models` | List available models |
-| `GET /voices` | List voices per engine |
-| `POST /tts` | Generate speech |
-| `POST /v1/audio/speech` | OpenAI-compatible endpoint |
+| `http://localhost:8000/api-docs` | Interactive Swagger UI — try every endpoint |
+| `http://localhost:8000/` | Web UI — the friendly form |
+| `GET /health` | Is it alive? Yes/no |
+| `GET /models` | What's installed? |
+| `GET /voices` | Who can speak? |
+| `POST /tts` | Make some noise |
+| `POST /v1/audio/speech` | OpenAI-compatible — drop-in replacement |

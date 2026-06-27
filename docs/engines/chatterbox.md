@@ -1,23 +1,23 @@
 # Chatterbox Turbo Engine
 
-The Chatterbox Turbo engine runs [Chatterbox-Turbo-TTS](https://huggingface.co/mlx-community/Chatterbox-Turbo-TTS-fp16) via MLX on Apple Silicon. It provides high-quality voice cloning from a reference WAV file.
+[Chatterbox-Turbo-TTS](https://huggingface.co/mlx-community/Chatterbox-Turbo-TTS-fp16) via MLX on Apple Silicon. One job, done well: high-quality voice cloning from a reference WAV.
 
-> **Apple Silicon only.** MLX requires the Metal GPU backend and cannot run on x86 or inside Docker.
+> **Apple Silicon only.** MLX needs the Metal GPU — no x86, no Docker.
 
 ---
 
 ## Model Download
 
-Download the MLX-converted fp16 weights using the HuggingFace Hub (with venv active):
+Grab the MLX-converted fp16 weights:
 
 ```bash
 source venv/bin/activate
 hf download mlx-community/Chatterbox-Turbo-TTS-fp16
 ```
 
-The model (~1.2 GB) is cached in the HuggingFace cache and loaded directly by mlx-audio. The S3TokenizerV2 is auto-downloaded on first load.
+The model (~1.2 GB) is cached by HuggingFace. S3TokenizerV2 auto-downloads on first load.
 
-For manual placement, the model can also be downloaded to `models/chatterbox/`:
+For manual placement:
 
 ```bash
 hf download mlx-community/Chatterbox-Turbo-TTS-fp16 \
@@ -34,9 +34,9 @@ models/
 
 ---
 
-## Example Request
+## Try it
 
-Chatterbox requires a reference WAV file for voice cloning. Place a `.wav` file in `voices/` first:
+Drop a WAV in `voices/` first, then:
 
 ```bash
 curl -X POST http://localhost:8000/tts \
@@ -55,31 +55,31 @@ curl -X POST http://localhost:8000/tts \
 
 | Field | Required | Notes |
 |---|---|---|
-| `sample_voice_file` | **Yes** | WAV filename in `voices/` with or without `.wav` extension |
-| `temperature` | No | `0.0` = deterministic (default); `0.7` = natural variation |
+| `sample_voice_file` | **Yes** | WAV filename in `voices/` (`.wav` optional) |
+| `temperature` | No | `0.0` = same every time; `0.7` = variation |
 | `seed` | No | Fix for reproducible output |
 
-### Reference Audio Requirements
+### Reference audio requirements
 
-- Minimum duration: **5 seconds** — shorter clips will be rejected
-- Format: any format ffmpeg can read (auto-converted to 24kHz mono WAV)
-- Quality: clearer recordings produce better clones
+- Minimum **5 seconds** — shorter clips get rejected
+- Any format ffmpeg can read (auto-converted to 24kHz mono)
+- Cleaner recordings = better clones
 
 ---
 
 ## Limitations
 
-- Voice cloning only — no built-in speakers or voice design
-- English language only
-- Requires Apple Silicon (MLX Metal backend)
+- Voice cloning only — no built-in speakers, no voice design
+- English only
+- Apple Silicon only
 
 ---
 
 ## Troubleshooting
 
-| Issue | Fix |
+| Problem | Fix |
 |---|---|
 | `mlx_audio not found` | Run `source venv/bin/activate` |
-| `Model not found` | Check `GET /models` after downloading |
-| Poor cloning quality | Provide a cleaner reference WAV (minimum 5 seconds) |
-| `ffmpeg` conversion failed | Run `brew install ffmpeg` |
+| Model not found | Check `GET /models` after downloading |
+| Poor clone quality | Cleaner reference WAV, at least 5 seconds |
+| ffmpeg failed | Run `brew install ffmpeg` |

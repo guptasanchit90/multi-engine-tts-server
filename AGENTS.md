@@ -1,4 +1,4 @@
-# AGENTS.md — Multi-Engine TTS Server
+# AGENTS.md — Sonus
 
 Guidelines for AI coding agents working in this repository.
 

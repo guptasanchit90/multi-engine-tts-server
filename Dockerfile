@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Local TTS Server — Docker image (Kokoro + Piper only)
+# Sonus — Docker image (Kokoro + Piper only)
 #
 # The Qwen3 engine requires the Apple Silicon Metal GPU via MLX and cannot
 # run inside Docker. Kokoro and Piper use CPU-based ONNX Runtime and work

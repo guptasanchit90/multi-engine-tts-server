@@ -1,39 +1,41 @@
 # API Reference
 
-The server listens on `http://0.0.0.0:8000` by default. Interactive docs (Swagger UI) are available at `http://localhost:8000/api-docs`.
-Web UI available at `http://localhost:8000/` — a dark-themed form for all TTS parameters.
+The server lives at `http://0.0.0.0:8000`. Hit it with curl, Python, or whatever speaks HTTP.
 
-All `/tts` requests return an `audio/mpeg` MP3 file.
+- Interactive docs (Swagger UI): `http://localhost:8000/api-docs`
+- Web UI: `http://localhost:8000/` — a dark-themed form that lets you play with everything
+
+All `/tts` requests return an MP3 file (`audio/mpeg`). Ping. Done.
 
 ---
 
-## POST /tts — Generate Speech
+## POST /tts — Make some noise
 
-The engine is selected automatically based on the `model` field.
+The server picks which engine to use based on the `model` field you send. Simple.
 
-### Request Body (JSON)
+### Request body
 
-| Field | Type | Default | Description |
+| Field | Type | Default | What it does |
 |---|---|---|---|
-| `text` | string | **required** | Text to synthesise |
-| `model` | string | **required** | Model or voice identifier (see engine docs) |
-| `speaker_name` | string | `null` | Named speaker — Qwen CustomVoice or Kokoro voice name |
-| `voice_description` | string | `null` | Qwen VoiceDesign: voice to generate; Qwen CustomVoice: tone/emotion |
-| `sample_voice_file` | string | `null` | Qwen Clone: filename (with or without `.wav`) inside `voices/` |
+| `text` | string | **required** | The words you want spoken |
+| `model` | string | **required** | Which model/voice (see engine docs) |
+| `speaker_name` | string | `null` | A named speaker — Qwen CustomVoice or Kokoro voice ID |
+| `voice_description` | string | `null` | Qwen VoiceDesign: describe the voice; Qwen CustomVoice: set tone/emotion |
+| `sample_voice_file` | string | `null` | Qwen Clone: WAV filename (`.wav` optional) inside `voices/` |
 | `speed` | string | `"normal"` | `"slow"` · `"normal"` · `"fast"` |
-| `temperature` | float | `0.0` | `0` = deterministic; `0.7` = natural variation (Qwen only) |
-| `seed` | integer | auto | Fix for reproducible output; echoed in `X-Seed` response header |
-| `add_pauses` | boolean | `true` | Insert silence for punctuation (`.`, `,`, `?`, `!`, newlines) |
+| `temperature` | float | `0.0` | `0` = same result every time; `0.7` = roll the dice (Qwen only) |
+| `seed` | integer | auto | Fix the randomness. Echoed back in `X-Seed` header. |
+| `add_pauses` | boolean | `true` | Breathe at punctuation (`.` `,` `?` `!` — you get the idea) |
 
 ### Response
 
-- **Success:** `audio/mpeg` binary, `filename: speech.mp3`
-- **Header:** `X-Seed: <integer>` — the seed actually used (useful for replaying a result)
-- **Error:** JSON `{"detail": "..."}` with appropriate HTTP status code
+- **Win:** `audio/mpeg` binary, filename `speech.mp3`
+- **Header:** `X-Seed: <integer>` — useful if you want to replay the same output
+- **Lose:** JSON `{"detail": "..."}` with an HTTP error code
 
-### Model Quick Reference
+### Model cheat sheet
 
-| Model value | Engine | Required field |
+| Model value | Engine | You need this field |
 |---|---|---|
 | `Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` | Qwen | `speaker_name` (optional) |
 | `Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` | Qwen | `speaker_name` (optional) |
@@ -42,7 +44,7 @@ The engine is selected automatically based on the `model` field.
 | `Qwen3-TTS-12Hz-1.7B-Base-8bit` | Qwen | `sample_voice_file` (required) |
 | `Qwen3-TTS-12Hz-0.6B-Base-8bit` | Qwen | `sample_voice_file` (required) |
 | `kokoro-v1.0` | Kokoro | `speaker_name` (optional, defaults to `af_heart`) |
-| `en_US-lessac-medium` | Piper | *(none — model IS the voice)* |
+| `en_US-lessac-medium` | Piper | *(none — the model IS the voice)* |
 | `<any piper voice stem>` | Piper | *(none)* |
 | `chatterbox-turbo-fp16` | Chatterbox | `sample_voice_file` (required) |
 
@@ -73,7 +75,7 @@ curl -X POST http://localhost:8000/tts \
   }' --output speech.mp3
 ```
 
-**Qwen — Voice Cloning** (place `my_voice.wav` in `voices/` first):
+**Qwen — Voice Cloning** (drop `my_voice.wav` into `voices/` first):
 ```bash
 curl -X POST http://localhost:8000/tts \
   -H "Content-Type: application/json" \
@@ -109,9 +111,9 @@ curl -X POST http://localhost:8000/tts \
 
 ---
 
-## GET /models — List Models
+## GET /models — What's installed?
 
-Returns all models across all engines with on-disk availability.
+Returns every model, across all engines, with an `available` flag so you know what's ready.
 
 ```bash
 curl http://localhost:8000/models
@@ -128,9 +130,9 @@ curl http://localhost:8000/models
 
 ---
 
-## GET /voices — List Voices
+## GET /voices — Who can speak?
 
-Returns all voices grouped by engine and category. Cloneable WAV files and Piper voices are read from disk at request time — no restart needed after adding new files.
+All voices, grouped by engine and category. Add WAV files to `voices/` and they show up instantly — no restart needed.
 
 ```bash
 curl http://localhost:8000/voices
@@ -157,9 +159,9 @@ curl http://localhost:8000/voices
 
 ---
 
-## GET /v1/models — List Available Models (OpenAI-compatible)
+## GET /v1/models — OpenAI-style model list
 
-Returns the model manifest with friendly aliases, capabilities, and on-disk availability.
+Returns friendly aliases and capabilities for the OpenAI-compatible endpoint.
 
 ```bash
 curl http://localhost:8000/v1/models
@@ -175,23 +177,23 @@ curl http://localhost:8000/v1/models
 
 ---
 
-## POST /v1/audio/speech — Generate Speech (OpenAI-compatible)
+## POST /v1/audio/speech — OpenAI-compatible TTS
 
-Follows the [OpenAI TTS API](https://platform.openai.com/docs/api-reference/audio/createSpeech) format.
+Drop-in replacement for [OpenAI's TTS endpoint](https://platform.openai.com/docs/api-reference/audio/createSpeech). Point your existing code at `http://localhost:8000` and it just works.
 
-### Request Body (JSON)
+### Request body
 
-| Field | Type | Default | Description |
+| Field | Type | Default | What it does |
 |---|---|---|---|
 | `model` | string | **required** | Alias from `/v1/models` (e.g. `kokoro`, `qwen-voice`, `qwen-clone`) |
-| `input` | string | **required** | Text to synthesize (max 4096 chars) |
-| `voice` | string | `null` | Maps to `speaker_name`, `voice_description`, or `sample_voice_file` depending on model capabilities |
+| `input` | string | **required** | Text to speak (max 4096 chars) |
+| `voice` | string | `null` | Maps to `speaker_name`, `voice_description`, or `sample_voice_file` |
 | `response_format` | string | `"mp3"` | `mp3` · `wav` · `pcm` |
 | `speed` | number | `1.0` | `0.25` – `4.0` |
 
-### Voice field mapping
+### How `voice` maps
 
-| Model capability | `voice` maps to |
+| Model capability | `voice` becomes |
 |---|---|
 | `speaker` / `voice_blend` | Speaker name (e.g. `af_heart`, `Vivian`) |
 | `voice_prompt` | Voice description (e.g. `"A warm, deep voice"`) |
@@ -199,9 +201,9 @@ Follows the [OpenAI TTS API](https://platform.openai.com/docs/api-reference/audi
 
 ### Response
 
-- **Success:** Audio file with `Content-Type: audio/mpeg` (or `audio/wav`, `audio/L16`)
+- **Win:** audio file with `Content-Type: audio/mpeg` (or `audio/wav`, `audio/L16`)
 - **Header:** `X-Seed: <integer>` — the seed used
-- **Error:** JSON `{"detail": "..."}`
+- **Lose:** JSON `{"detail": "..."}`
 
 ### Example
 
@@ -218,9 +220,9 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ---
 
-## DELETE /outputs — Delete Generated Audio
+## DELETE /outputs — Clean up
 
-Delete all MP3 files from `outputs/server/`. Returns count and filenames of deleted files.
+Deletes all generated MP3s from `outputs/server/`. Returns what it nuked.
 
 ```bash
 curl -X DELETE http://localhost:8000/outputs
@@ -232,7 +234,7 @@ curl -X DELETE http://localhost:8000/outputs
 
 ---
 
-## GET /health — Health Check
+## GET /health — Is it alive?
 
 ```bash
 curl http://localhost:8000/health
@@ -242,17 +244,19 @@ curl http://localhost:8000/health
 {"status": "ok"}
 ```
 
+Yep.
+
 ---
 
-## Error Responses
+## Errors
 
-All errors return JSON:
+All errors come back as JSON:
 
 ```json
-{"detail": "Human-readable error message"}
+{"detail": "Something went wrong — here's what"}
 ```
 
-| HTTP Status | Meaning |
+| HTTP status | What it means |
 |---|---|
-| `422` | Invalid request (unknown model, missing required field, bad parameter) |
-| `500` | Server-side error (model load failure, ffmpeg not installed, generation failed) |
+| `422` | Bad request — unknown model, missing field, bad value |
+| `500` | Server oops — model didn't load, ffmpeg not found, generation bombed |

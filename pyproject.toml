@@ -1,7 +1,7 @@
 [project]
-name = "local-tts-server"
+name = "sonus-tts"
 version = "0.1.0"
-description = "Multi-engine TTS server for Apple Silicon"
+description = "Sonus — Speak freely. Multi-engine offline TTS server for Apple Silicon"
 requires-python = ">=3.13"
 license = { text = "MIT" }
 

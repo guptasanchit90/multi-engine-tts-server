@@ -1,36 +1,39 @@
 # Development Setup
 
-## Prerequisites
+## What you'll need
 
-- macOS with Apple Silicon (M1–M4)
+- A Mac with Apple Silicon (M1–M4)
 - Python 3.13+ (`brew install python@3.13`)
 - [ffmpeg](https://ffmpeg.org/) (`brew install ffmpeg`)
 
-## Setup
+## First time
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/local-tts-server.git
-cd local-tts-server
+git clone https://github.com/YOUR_USERNAME/sonus.git
+cd sonus
 
 python3.13 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> **Always use the project venv** — do not use system `pip3` or `python3` directly.
+> **Keep it in the venv.** Don't use system `pip3` or `python3` directly — you'll have a bad time.
 
-## Running
+## Run it
 
 ```bash
 source venv/bin/activate
-python server.py          # listens on http://0.0.0.0:8000
+python server.py          # fires up on http://0.0.0.0:8000
 ```
 
+Where to find things:
 - Interactive API docs: `http://localhost:8000/docs`
 - Web UI: `http://localhost:8000/`
 - OpenAI-compatible endpoint: `http://localhost:8000/v1/audio/speech`
 
-## Linting & Type Checking
+## Lint & typecheck
+
+Keep the code clean:
 
 ```bash
 ruff check server.py src/
@@ -38,21 +41,21 @@ ruff format server.py src/
 pyright server.py src/
 ```
 
-## Testing
+## Tests
 
 ```bash
 venv/bin/pytest tests/ -v
 ```
 
-Place new tests in `tests/` using `pytest`.
+New tests go in `tests/` using `pytest`.
 
-## Model Download
+## Model download
 
-Each engine requires model files. See the individual engine docs in `docs/engines/` for download instructions.
+Each engine needs its own model files. See `docs/engines/` for the download ritual.
 
 ### Docker
 
-Kokoro and Piper engines can run in Docker:
+Kokoro and Piper can run in Docker (Qwen and Chatterbox need the Metal GPU, so no Docker for them):
 
 ```bash
 docker build -t tts-server .
@@ -62,5 +65,3 @@ docker run -p 8000:8000 \
   -v "$(pwd)/outputs:/app/outputs" \
   tts-server
 ```
-
-Qwen and Chatterbox require Apple Silicon Metal GPU and cannot run in Docker.

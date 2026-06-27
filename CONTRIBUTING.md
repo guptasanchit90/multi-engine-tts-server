@@ -1,13 +1,13 @@
 # Contributing
 
-Contributions are welcome — bug reports, new engines, documentation improvements, and pull requests.
+Pull requests, bug reports, and new engines — all welcome. Let's build the best local TTS server together.
 
 ---
 
-## Table of Contents
+## What's in here
 
 - [Getting Started](#getting-started)
-- [Project Overview](#project-overview)
+- [How it's built](#how-its-built)
 - [Adding a New Engine](#adding-a-new-engine)
 - [Code Style](#code-style)
 - [OpenAI-Compatible Endpoint](#openai-compatible-endpoint)
@@ -21,8 +21,8 @@ Contributions are welcome — bug reports, new engines, documentation improvemen
 ## Getting Started
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/local-tts-server.git
-cd local-tts-server
+git clone https://github.com/YOUR_USERNAME/sonus.git
+cd sonus
 
 python3 -m venv venv
 source venv/bin/activate
@@ -30,58 +30,55 @@ pip install -r requirements.txt
 brew install ffmpeg
 ```
 
-Download at least one engine's models (see the engine docs in `docs/engines/`) before running.
+Download models for at least one engine (see `docs/engines/`) and you're off.
 
 ---
 
-## Project Overview
+## How it's built
 
-A FastAPI HTTP server exposing a multi-engine TTS API, running locally on Apple Silicon.
-Engines live in `src/engines/` and implement the `TTSEngine` protocol (`src/engines/base.py`).
-
-### Architecture
+A FastAPI server that wraps multiple TTS engines behind a single HTTP API. Engines live in `src/engines/` and sign the `TTSEngine` protocol (`src/engines/base.py`).
 
 ```
-server.py              # FastAPI app, routing, entry point
+server.py              # FastAPI app — routing, entry point
 src/
-  utils.py             # Shared constants + helpers (voice resolution, ffmpeg, memory)
-  cache.py             # Generic ModelCache[T] with TTL eviction for MLX engines
-  audio.py             # WAV silence trimming + MP3 conversion
+  utils.py             # Helpers everyone shares (voice resolution, ffmpeg, memory)
+  cache.py             # ModelCache[T] — TTL eviction for MLX engines
+  audio.py             # Trim silence, convert to MP3
   engines/
     base.py            # TTSEngine protocol + @register decorator + BaseEngine mixin
     qwen.py            # Qwen3 via mlx-audio (Apple Silicon)
     chatterbox.py      # Chatterbox Turbo via mlx-audio (Apple Silicon)
     kokoro.py          # Kokoro-82M via kokoro-onnx (ONNX)
     piper.py           # Piper via piper-tts (ONNX)
-    __init__.py        # Imports all engine modules to trigger @register decorators
+    __init__.py        # Imports everything so @register fires
 static/
-  index.html           # Web UI form for all TTS parameters
-  app.js               # Web UI logic — form submission, audio playback
-models/                # Downloaded model files (gitignored)
-voices/                # Cloneable WAV samples (gitignored except .gitkeep)
-outputs/               # Generated audio (gitignored)
-docs/                  # API and per-engine documentation
+  index.html           # Web UI — pick your voice, click go
+  app.js               # Web UI logic — form, playback, everything
+models/                # Downloaded models (gitignored)
+voices/                # Your WAV samples for cloning (gitignored)
+outputs/               # Generated audio lands here (gitignored)
+docs/                  # API and engine docs
 ```
 
 ---
 
 ## Adding a New Engine
 
-Engines are auto-discovered via the `@register` decorator — **no `server.py` edits needed**.
+Engines auto-register via the `@register` decorator. **You don't touch `server.py`.** Drop in a file, decorate it, done.
 
-### Registration steps
+### Steps
 
-| Step | Action |
+| # | Do this |
 |---|---|
 | 1 | Create `src/engines/<name>.py` implementing `TTSEngine` |
-| 2 | Add `@register` decorator from `src.engines.base` |
-| 3 | Set `engine_name` property (used by `/voices` route) |
-| 4 | Import shared utilities from `src.utils` instead of re-implementing them |
-| 5 | For MLX engines — use `ModelCache` from `src.cache` for model caching |
-| 6 | Register the module in `src/engines/__init__.py` by importing the engine class |
-| 7 | Add `docs/engines/<name>.md` |
+| 2 | Slap `@register` on it from `src.engines.base` |
+| 3 | Set `engine_name` property (used by `/voices`) |
+| 4 | Import shared goodies from `src.utils` instead of rolling your own |
+| 5 | MLX engine? Use `ModelCache` from `src.cache` |
+| 6 | Register your module in `src/engines/__init__.py` |
+| 7 | Write `docs/engines/<name>.md` |
 
-### Quick-start template
+### Template
 
 ```python
 # src/engines/myengine.py
@@ -131,38 +128,38 @@ class MyEngine(BaseEngine):
     def generate(self, request: dict, tmp_dir: str) -> str:
         text = request["text"]
         wav_path = os.path.join(tmp_dir, "audio_000.wav")
-        # ... write audio to wav_path ...
+        # ... make some noise ...
         if not os.path.exists(wav_path):
             raise HTTPException(status_code=500, detail="TTS produced no output file")
         return wav_path
 ```
 
-### The five required methods
+### The five methods you must implement
 
-| Method | Responsibility |
+| Method | Job |
 |---|---|
-| `claims(model)` | Return `True` if this engine owns the model identifier |
-| `list_models()` | Return metadata dicts with `engine`, `model`, `mode`, `available` keys |
-| `list_voices()` | Return `{category: [voice_id, ...]}` or `{}` |
-| `validate(request)` | Raise `HTTPException(422)` on bad input — called before any model loading |
-| `generate(request, tmp_dir)` | Run inference, write `audio_000.wav` into `tmp_dir`, return its path |
+| `claims(model)` | Return `True` if this engine handles this model string |
+| `list_models()` | Return model metadata dicts |
+| `list_voices()` | Return `{category: [voice_id, ...]}` |
+| `validate(request)` | Raise `HTTPException(422)` on bad input (runs before model loading) |
+| `generate(request, tmp_dir)` | Run the model, write `audio_000.wav`, return its path |
 
-### Shared utilities at `src/utils.py`
+### Shared utilities (`src/utils.py`)
 
 | Function | What it does |
 |---|---|
-| `resolve_voice(filename)` | Find a `.wav` in `voices/` by name or full filename |
-| `model_path(base_dir, folder)` | Resolve model folder path (handles HF snapshot layout) |
-| `get_audio_duration(filepath)` | Get audio duration via ffprobe |
-| `convert_to_wav_24k(in, out)` | Re-encode any audio to 24kHz mono WAV via ffmpeg |
-| `clean_memory()` | `gc.collect()` + `mx.clear_cache()` if MLX available |
+| `resolve_voice(filename)` | Find a `.wav` in `voices/` |
+| `model_path(base_dir, folder)` | Resolve model folder (handles HF snapshots) |
+| `get_audio_duration(filepath)` | Ask ffprobe how long an audio file is |
+| `convert_to_wav_24k(in, out)` | Re-encode to 24kHz mono WAV via ffmpeg |
+| `clean_memory()` | `gc.collect()` + `mx.clear_cache()` if MLX is around |
 | `scan_wav_voices(dir)` | List `.wav` files in a directory (sorted, no dotfiles) |
 
-Shared constants: `MODELS_DIR` (base), `VOICES_DIR`, `SAMPLE_RATE`.
+Shared constants: `MODELS_DIR`, `VOICES_DIR`, `SAMPLE_RATE`.
 
 ### Model cache for MLX engines
 
-Engines using `mlx` should cache their loaded model with `ModelCache` from `src.cache`:
+MLX engines should cache loaded models with `ModelCache`:
 
 ```python
 from src.cache import ModelCache
@@ -181,13 +178,13 @@ def generate(self, request, tmp_dir):
 
 1. Stdlib imports (alphabetical)
 2. Warning suppression
-3. `try/except ImportError` for optional platform deps (MLX) — set `_MLX_AVAILABLE = False`
+3. `try/except ImportError` for optional platform deps (MLX) — set `_MLX_AVAILABLE`
 4. `try/except ImportError` for hard deps (fastapi)
 5. Shared imports from `src.utils`, `src.cache`
 6. Engine-specific imports from `.base`
 7. Constants (`MODELS_DIR`, `MODEL_ID`, engine-specific maps)
-8. Engine helpers (if any, prefixed with `_`)
-9. `@register` class implementing `TTSEngine`
+8. Helpers (prefixed with `_`)
+9. `@register` class
 
 ---
 
@@ -195,19 +192,19 @@ def generate(self, request, tmp_dir):
 
 ### General
 
-- **Engines belong in `src/engines/`.** Shared utilities in `src/utils.py`, `src/cache.py`, `src/audio.py`.
-- **No classes outside engine files.** Procedural helpers are preferred everywhere else.
-- **Line length:** keep under ~100 characters. Match existing style.
+- **Engines go in `src/engines/`.** Shared stuff in `src/utils.py`, `src/cache.py`, `src/audio.py`.
+- **No classes outside engine files.** Everywhere else, keep it procedural.
+- **Keep lines under ~100 chars.** Match the vibe around you.
 - **No trailing whitespace.**
 
 ### Imports
 
-Group imports in this order, separated by blank lines:
+Group in this order, separated by blank lines:
 
 1. Stdlib (alphabetical)
 2. Warning suppression
-3. Third-party `try/except ImportError` (optional deps like `mlx`)
-4. Third-party `try/except ImportError` (hard deps like `fastapi`)
+3. Third-party `try/except ImportError` (optional — `mlx`)
+4. Third-party `try/except ImportError` (hard — `fastapi`)
 5. Project modules (`src.utils`, `src.cache`)
 6. Relative engine imports (`.base`)
 
@@ -236,36 +233,36 @@ from src.utils import VOICES_DIR, SAMPLE_RATE, resolve_voice, clean_memory
 from .base import BaseEngine, register
 ```
 
-- No wildcard imports (`from foo import *`).
-- Lazy imports inside a function are acceptable for platform-specific modules (`termios`).
+- No `from foo import *`.
+- Lazy imports inside a function are OK for platform-specific modules.
 
-### Naming Conventions
+### Naming
 
-| Kind | Convention | Example |
+| Kind | Style | Example |
 |---|---|---|
 | Functions | `snake_case` verb_noun | `load_model`, `scan_voices`, `clean_memory` |
-| Constants | `UPPER_SNAKE_CASE` | `MODELS_DIR`, `SAMPLE_RATE`, `MODEL_ID` |
-| Private helpers | `_leading_underscore` | `_model_path`, `_resolve_voice`, `_lang_for_voice` |
-| Local variables | `snake_case` | `tmp_dir`, `wav_path`, `speed_key` |
-| Boolean flags | Positive prefix | `_MLX_AVAILABLE`, `is_valid` |
+| Constants | `UPPER_SNAKE_CASE` | `MODELS_DIR`, `SAMPLE_RATE` |
+| Private helpers | `_leading_underscore` | `_model_path`, `_resolve_voice` |
+| Local variables | `snake_case` | `tmp_dir`, `wav_path` |
+| Booleans | Positive prefix | `_MLX_AVAILABLE`, `is_valid` |
 | Engine property | `engine_name` (property) | `return "qwen"` |
 
-### Type Annotations
+### Type annotations
 
-Engine files use type annotations — maintain them when editing engine code:
+Engine files use type annotations. Keep 'em:
 
 ```python
 def claims(self, model: str) -> bool: ...
 def list_models(self) -> list[dict]: ...
 ```
 
-- Use `str | None` over `Optional[str]` (Python 3.10+ union syntax).
-- `server.py` and helpers have no annotations — adding them is welcome but not required.
-- If you annotate, annotate all parameters and the return type consistently.
+- Use `str | None` over `Optional[str]`.
+- `server.py` has none — adding them is welcome but not required.
+- If you annotate, annotate everything consistently.
 
 ### Constants
 
-Per-engine constants live in the engine file. Shared constants are in `src/utils.py`:
+Per-engine constants in the engine file. Shared constants in `src/utils.py`:
 
 ```python
 # src/utils.py (shared)
@@ -273,22 +270,22 @@ MODELS_DIR  = os.path.join(os.getcwd(), "models")
 VOICES_DIR  = os.path.join(os.getcwd(), "voices")
 SAMPLE_RATE = 24000
 
-# Engine file (engine-specific)
+# Engine file (your engine's stuff)
 MODELS_DIR = os.path.join(os.getcwd(), "models", "myengine")
 ```
 
-Use `os.getcwd()` — never hardcode absolute paths.
+Use `os.getcwd()`. Never hardcode paths.
 
-### Error Handling
+### Error handling
 
-**In engines** — raise `HTTPException` so FastAPI returns a clean JSON error:
+**In engines** — raise `HTTPException` so FastAPI gives a clean JSON error:
 
 ```python
 raise HTTPException(status_code=422, detail="'voice_description' is required")
 raise HTTPException(status_code=500, detail=f"Generation failed: {e}")
 ```
 
-**Guard clauses** — return `None` early rather than deep nesting:
+**Guard clauses** — return `None` early instead of nesting:
 
 ```python
 def _model_path(folder_name: str) -> str | None:
@@ -308,18 +305,16 @@ except (ImportError, OSError):
     pass
 ```
 
-- Never use bare `except:` — always catch at minimum `Exception`.
-- Do not re-raise unless there is a specific reason to propagate.
-- Always clean up resources in `finally` (models, temp dirs).
+- Never use bare `except:` — catch at minimum `Exception`.
+- Don't re-raise without a reason.
+- Always clean up resources in `finally`.
 
-### Path Handling
+### Path handling
 
-- Use `os.path.join` for all path construction — never string concatenation.
-- Temp directories: `tempfile.gettempdir()` + a unique suffix. Clean up with `shutil.rmtree`.
+- `os.path.join` for everything. No string concatenation.
+- Temp dirs: `tempfile.gettempdir()` + unique suffix. Clean up with `shutil.rmtree`.
 
-### Subprocess Usage
-
-Use `subprocess.run` with explicit stdout/stderr suppression:
+### Subprocess
 
 ```python
 subprocess.run(
@@ -328,11 +323,11 @@ subprocess.run(
 )
 ```
 
-Use `check=True` when failure matters (ffmpeg conversion). Use `check=False` for optional commands (`afplay`).
+Use `check=True` when failure matters (ffmpeg). Use `check=False` for optional stuff (`afplay`).
 
-### Memory Management
+### Memory management
 
-Call `clean_memory()` from `src.utils` (handles `gc.collect()` + `mx.clear_cache()`) after releasing heavy MLX models:
+Call `clean_memory()` after releasing MLX models:
 
 ```python
 finally:
@@ -340,11 +335,11 @@ finally:
     clean_memory()
 ```
 
-The `ModelCache` class (`src/cache.py`) calls `clean_memory()` automatically on eviction.
+`ModelCache` calls `clean_memory()` automatically on eviction.
 
-### Warning Suppression
+### Warning suppression
 
-Keep at the top of every engine file:
+Top of every engine file:
 
 ```python
 import warnings
@@ -358,11 +353,11 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 ## OpenAI-Compatible Endpoint
 
-The server exposes `POST /v1/audio/speech` following the [OpenAI TTS API](https://platform.openai.com/docs/api-reference/audio/createSpeech) format.
+The server exposes `POST /v1/audio/speech` that speaks OpenAI's TTS API dialect.
 
 ### Model aliases
 
-The model manifest is built **dynamically** from each engine's `list_models()` at request time. Each engine declares its aliases directly in `list_models()`:
+The manifest is built **dynamically** from each engine's `list_models()` at request time:
 
 ```python
 def list_models(self) -> list[dict]:
@@ -378,11 +373,11 @@ def list_models(self) -> list[dict]:
     }]
 ```
 
-For catch-all engines (like Piper, where voice files are the models), use `"model": ""`.
+For catch-all engines (Piper — voice files ARE the models), use `"model": ""`.
 
 ### Voice field mapping
 
-| Capability | `voice` param maps to |
+| Capability | `voice` param becomes |
 |---|---|
 | `speaker` / `voice_blend` | `speaker_name` |
 | `voice_prompt` | `voice_description` |
@@ -390,28 +385,28 @@ For catch-all engines (like Piper, where voice files are the models), use `"mode
 
 ### Adding a new alias
 
-Add a new entry to the engine's `list_models()` return dict:
-1. Pick a short, descriptive `id` (unique across all engines)
-2. Set `engine` to match `engine_name`
+Add an entry to `list_models()`:
+1. Pick a short `id` (unique across all engines)
+2. Set `engine` to `engine_name`
 3. Set `model` to the internal model identifier
 4. Declare `capabilities`
 5. Set `available` based on model file presence
 
-### OpenAI standard name mapping
+### OpenAI name mapping
 
-`OPENAI_MODEL_ALIASES` in `server.py` maps standard OpenAI names (`tts-1`, `tts-1-hd`) to aliases from the dynamic manifest.
+`OPENAI_MODEL_ALIASES` in `server.py` maps `tts-1`, `tts-1-hd` to aliases from the dynamic manifest.
 
 ---
 
 ## Output File Conventions
 
-- Generated MP3s are saved to `outputs/server/<uuid>.mp3` by the server.
-- Temp work directories are `<tempdir>/tts_<uuid>/` and deleted after each request.
-- Cloneable voice samples live in `voices/*.wav` (gitignored except `.gitkeep`).
-- Piper models: `models/piper/<name>.onnx` + `<name>.onnx.json`.
-- Kokoro models: `models/kokoro/kokoro-v1.0.onnx` + `voices-v1.0.bin`.
-- Qwen models: `models/qwen/<folder>/` (HuggingFace snapshot layout).
-- Chatterbox models: loaded directly from HF cache (`mlx-community/Chatterbox-Turbo-TTS-fp16`).
+- Generated MP3s → `outputs/server/<uuid>.mp3`
+- Temp work dirs → `<tempdir>/tts_<uuid>/` (deleted after each request)
+- Clone voices → `voices/*.wav` (gitignored except `.gitkeep`)
+- Piper models → `models/piper/<name>.onnx` + `<name>.onnx.json`
+- Kokoro models → `models/kokoro/kokoro-v1.0.onnx` + `voices-v1.0.bin`
+- Qwen models → `models/qwen/<folder>/` (HF snapshot layout)
+- Chatterbox → HF cache (`mlx-community/Chatterbox-Turbo-TTS-fp16`)
 
 ## Chatterbox Turbo Model Setup
 
@@ -420,38 +415,38 @@ source venv/bin/activate
 hf download mlx-community/Chatterbox-Turbo-TTS-fp16
 ```
 
-The fp16 variant (~1.2 GB) is cached in the HuggingFace cache and loaded directly by mlx-audio. The S3TokenizerV2 is auto-downloaded by mlx-audio on first load.
+The fp16 variant (~1.2 GB) lives in the HuggingFace cache. S3TokenizerV2 auto-downloads on first load.
 
 ---
 
 ## Key Dependencies
 
-| Package | Used by | Purpose |
+| Package | Who uses it | What for |
 |---|---|---|
-| `fastapi`, `uvicorn` | `server.py` | HTTP server |
-| `mlx`, `mlx-audio`, `mlx-metal` | `qwen.py`, `chatterbox.py` | Apple Silicon inference |
-| `kokoro-onnx` | `kokoro.py` | Kokoro ONNX runtime |
-| `piper-tts` | `piper.py` | Piper ONNX runtime |
-| `numpy`, `soundfile` | `kokoro.py` | Audio array I/O |
+| `fastapi`, `uvicorn` | `server.py` | Serving HTTP |
+| `mlx`, `mlx-audio`, `mlx-metal` | `qwen.py`, `chatterbox.py` | Apple Silicon GPU inference |
+| `kokoro-onnx` | `kokoro.py` | Kokoro ONNX |
+| `piper-tts` | `piper.py` | Piper ONNX |
+| `numpy`, `soundfile` | `kokoro.py` | Audio arrays |
 | `transformers`, `tokenizers` | `mlx-audio` (transitive) | Tokenisation |
-| `huggingface_hub` | `mlx-audio` (transitive) | Model downloading |
+| `huggingface_hub` | `mlx-audio` (transitive) | Model downloads |
 
-Pin new direct dependencies to exact versions (`==`) in `requirements.txt`. Transitive deps are installed automatically — do not pin them explicitly unless resolving a conflict.
+Pin direct dependencies with `==` in `requirements.txt`. Transitive deps install automatically — don't pin them unless you need to.
 
 ---
 
 ## Reporting Bugs
 
 Open an issue with:
-- macOS version and Apple Silicon chip (e.g. M2 Pro)
+- macOS version and chip (e.g. M2 Pro)
 - Python version (`python3 --version`)
-- The exact command or request that failed
+- The exact command that broke
 - Full error output
 
 ---
 
 ## Pull Requests
 
-- Keep changes focused — one logical change per PR.
-- Update the relevant `docs/` file if you change behaviour.
+- One logical change per PR.
+- Update docs if you change behaviour.
 - Test with at least one engine before submitting.

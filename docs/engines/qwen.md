@@ -1,31 +1,31 @@
 # Qwen3 Engine
 
-The Qwen3 engine runs Alibaba's Qwen3-TTS models locally via [MLX](https://github.com/ml-explore/mlx) on Apple Silicon. It supports three distinct operating modes: custom voice, voice design, and voice cloning.
+Alibaba's Qwen3-TTS, running locally on Apple Silicon via [MLX](https://github.com/ml-explore/mlx). Three modes: custom voice, voice design, voice cloning. Premium quality.
 
-> **Apple Silicon only.** MLX requires the Metal GPU backend and cannot run on x86 or inside Docker.
+> **Apple Silicon only.** MLX needs the Metal GPU — no x86, no Docker.
 
 ---
 
 ## Models
 
-Download only the models you need and place them inside `models/qwen/`.
+Pick what you need, download it, drop it in `models/qwen/`.
 
 ### Pro (1.7B) — Best quality, ~6 GB RAM
 
-| Model folder | Mode | HuggingFace |
+| Model folder | Mode | Download |
 |---|---|---|
-| `Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` | Custom voice | [link](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit) |
-| `Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit` | Voice design | [link](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit) |
-| `Qwen3-TTS-12Hz-1.7B-Base-8bit` | Voice cloning | [link](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit) |
+| `Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` | Custom voice | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit) |
+| `Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit` | Voice design | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit) |
+| `Qwen3-TTS-12Hz-1.7B-Base-8bit` | Voice cloning | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit) |
 
 ### Lite (0.6B) — Faster, ~3 GB RAM
 
-| Model folder | Mode | HuggingFace |
+| Model folder | Mode | Download |
 |---|---|---|
-| `Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` | Custom voice | [link](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit) |
-| `Qwen3-TTS-12Hz-0.6B-Base-8bit` | Voice cloning | [link](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit) |
+| `Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` | Custom voice | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit) |
+| `Qwen3-TTS-12Hz-0.6B-Base-8bit` | Voice cloning | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit) |
 
-Download via HuggingFace Hub:
+Download via HF Hub:
 
 ```bash
 source venv/bin/activate
@@ -46,20 +46,20 @@ models/
 
 ---
 
-## Why MLX vs PyTorch?
+## MLX vs PyTorch — why MLX?
 
 | | PyTorch | MLX |
 |---|---|---|
 | RAM | 10+ GB | 2–3 GB |
-| CPU temperature | 80–90 °C | 40–50 °C |
+| CPU temp | 80–90 °C (ouch) | 40–50 °C (cozy) |
 
-*Tested on M4 MacBook Air (fanless) with 1.7B models.*
+*Measured on an M4 MacBook Air (fanless) with 1.7B models. MLX keeps it cool.*
 
 ---
 
 ## Mode 1: Custom Voice
 
-Use a named built-in speaker. Optionally set tone/emotion via `voice_description`.
+Pick a built-in speaker. Optionally set the vibe with `voice_description`.
 
 **Built-in speakers:** `Ryan`, `Aiden`, `Ethan`, `Chelsie`, `Serena`, `Vivian`, `Uncle_Fu`, `Dylan`, `Eric`, `Ono_Anna`, `Sohee`
 
@@ -87,7 +87,7 @@ curl -X POST http://localhost:8000/tts \
 
 ## Mode 2: Voice Design
 
-Describe a voice in plain English — the model generates it from scratch.
+Describe a voice in plain English. The model builds it on the fly.
 
 ```bash
 curl -X POST http://localhost:8000/tts \
@@ -103,9 +103,9 @@ curl -X POST http://localhost:8000/tts \
 
 | Field | Required | Notes |
 |---|---|---|
-| `voice_description` | **Yes** | Plain-English description of the voice to generate |
+| `voice_description` | **Yes** | Plain English — describe the voice you want |
 
-Example descriptions:
+Try these:
 - `"Warm, friendly female customer support agent"`
 - `"Excited young child, speaking fast"`
 - `"Elderly professor, slow and thoughtful"`
@@ -114,9 +114,7 @@ Example descriptions:
 
 ## Mode 3: Voice Cloning
 
-Clone any voice from a WAV reference file.
-
-**Setup:** place a WAV file inside `voices/`. The server picks it up immediately — no restart needed.
+Clone any voice from a WAV file. Drop it in `voices/`, call the API — that's it.
 
 ```bash
 curl -X POST http://localhost:8000/tts \
@@ -131,29 +129,29 @@ curl -X POST http://localhost:8000/tts \
 
 | Field | Required | Notes |
 |---|---|---|
-| `sample_voice_file` | **Yes** | Filename in `voices/` with or without `.wav` extension |
+| `sample_voice_file` | **Yes** | Filename in `voices/` (`.wav` extension optional) |
 
-**Improving clone quality:** place a `.txt` sidecar alongside the WAV containing the exact words spoken in the recording:
+**Pro tip for better clones:** Add a `.txt` sidecar with the exact words spoken:
 
 ```
 voices/
 ├── my_voice.wav
-└── my_voice.txt   ← exact transcript of the WAV audio
+└── my_voice.txt   ← transcript of what's in the WAV
 ```
 
 ---
 
 ## Reproducibility
 
-Fix `temperature=0.0` and a `seed` to get identical audio on every call:
+Want the exact same audio every time?
 
 ```json
 { "temperature": 0.0, "seed": 42 }
 ```
 
-The seed actually used is always returned in the `X-Seed` response header — useful for logging and replaying specific outputs.
+The seed used is always in the `X-Seed` response header — handy for replaying specific outputs.
 
-For natural variation (slightly different each call):
+Want natural variation (different each call)?
 
 ```json
 { "temperature": 0.7 }
@@ -163,19 +161,19 @@ For natural variation (slightly different each call):
 
 ## Limitations
 
-- Apple Silicon only — no x86 or Docker support
-- Voice Design mode requires a descriptive `voice_description` (minimum ~10 words recommended)
-- Voice Cloning requires a WAV reference file at least 5 seconds long
-- `temperature` only affects Custom Voice mode; Voice Design and Voice Cloning are deterministic
+- Apple Silicon only — no x86, no Docker
+- Voice Design needs a descriptive `voice_description` (~10 words minimum recommended)
+- Voice Cloning needs a WAV at least 5 seconds long
+- `temperature` only works in Custom Voice mode; Design and Cloning are deterministic
 
 ---
 
 ## Troubleshooting
 
-| Issue | Fix |
+| Problem | Fix |
 |---|---|
 | `mlx_audio not found` | Run `source venv/bin/activate` |
-| `Model folder not found` | Check folder name matches exactly — use `GET /models` |
-| `WAV-to-MP3 conversion failed` | Run `brew install ffmpeg` |
-| Poor cloning quality | Add a `.txt` transcript sidecar next to the `.wav` |
-| High memory usage | Use the 0.6B Lite models instead of 1.7B Pro |
+| `Model folder not found` | Check the folder name — use `GET /models` |
+| WAV-to-MP3 failed | Run `brew install ffmpeg` |
+| Bad clone quality | Add a `.txt` transcript next to the `.wav` |
+| High memory usage | Switch to 0.6B Lite models |
