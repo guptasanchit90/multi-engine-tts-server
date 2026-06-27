@@ -196,12 +196,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // ── Initial data load ────────────────────────────────────────────────────
   function loadAll() {
     Promise.all([
-      fetch("/v1/models").then((r) => r.json()),
+      fetch("/v1/models?extras=true").then((r) => r.json()),
       fetch("/voices").then((r) => r.json()),
       fetch("/voices/detail").then((r) => r.json()),
       fetch("/outputs/detail").then((r) => r.json()),
     ]).then(([modelData, voiceData, vDetails, outData]) => {
-      models = Array.isArray(modelData) ? modelData : Object.values(modelData);
+      models = modelData.data || (Array.isArray(modelData) ? modelData : []);
       _modelToEngine = {};
       models.forEach((m) => { _modelToEngine[m.id] = m.engine; });
       voices = voiceData;

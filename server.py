@@ -83,10 +83,12 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 
 
-def _build_manifest() -> dict[str, dict]:
+def _build_manifest(*, available_only: bool = True) -> dict[str, dict]:
     manifest = {}
     for engine in ENGINES:
         for m in engine.list_models():
+            if available_only and not m.get("available", False):
+                continue
             eid = m["id"]
             manifest[eid] = {
                 "id": eid,
@@ -595,9 +597,47 @@ def delete_output(filename: str):
 @app.get(
     "/v1/models", summary="List available models (OpenAI-compatible)", tags=["models-and-voices"]
 )
-def list_v1_models():
+def list_v1_models(extras: bool = False):
     manifest = _build_manifest()
-    return JSONResponse(content=list(manifest.values()))
+    now = int(time.time())
+
+    data = []
+    for eid, entry in manifest.items():
+        base = {
+            "id": eid,
+            "object": "model",
+            "created": now,
+            "owned_by": entry["engine"],
+        }
+        if extras:
+            base.update(
+                {
+                    "name": entry.get("name", eid),
+                    "engine": entry["engine"],
+                    "model": entry["model"],
+                    "mode": entry.get("mode", "speaker"),
+                    "capabilities": entry.get("capabilities", []),
+                    "description": entry.get("description", ""),
+                    "available": entry.get("available", False),
+                    "voices": entry.get("voices", {}),
+                    "languages": entry.get("languages", []),
+                    "install": entry.get("install"),
+                }
+            )
+        data.append(base)
+
+    for alias in OPENAI_MODEL_ALIASES:
+        if alias not in manifest:
+            data.append(
+                {
+                    "id": alias,
+                    "object": "model",
+                    "created": now,
+                    "owned_by": "openai",
+                }
+            )
+
+    return JSONResponse(content={"object": "list", "data": data})
 
 
 @app.post(
@@ -620,10 +660,7 @@ async def openai_speech(req: OpenAIRequest, request: Request):
                 "Specify a natural language voice description."
             )
         else:
-            detail = (
-                "'voice' is required. "
-                "Specify a voice name from the available voices."
-            )
+            detail = "'voice' is required. Specify a voice name from the available voices."
         raise HTTPException(status_code=422, detail=detail)
 
     request_dict = _openai_to_internal(req, manifest)
