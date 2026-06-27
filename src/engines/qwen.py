@@ -233,6 +233,12 @@ class QwenEngine(BaseEngine):
                 "available": _model_path(MODELS_DIR, folder) is not None,
                 "voices": _voices(mode),
                 "languages": ["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
+                "install": {
+                    "source": "huggingface",
+                    "commands": [
+                        f"huggingface-cli download mlx-community/{folder} --local-dir models/qwen/{folder}",
+                    ],
+                },
             }
             for folder, mode in _MODELS.items()
         ]

@@ -99,6 +99,7 @@ def _build_manifest() -> dict[str, dict]:
                 "available": m.get("available", False),
                 "voices": m.get("voices", {}),
                 "languages": m.get("languages", []),
+                "install": m.get("install"),
             }
     return manifest
 

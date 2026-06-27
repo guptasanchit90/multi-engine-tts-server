@@ -345,6 +345,42 @@
     color: var(--muted);
     font-style: italic;
   }
+
+  /* Install modal */
+  .install-group { margin-bottom: 1.25rem; }
+  .install-group h3 {
+    font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.5rem;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .install-model {
+    display: flex; align-items: flex-start; gap: 0.5rem;
+    padding: 0.35rem 0; border-bottom: 1px solid var(--border);
+  }
+  .install-model:last-child { border-bottom: none; }
+  .install-status { font-size: 0.75rem; flex-shrink: 0; margin-top: 0.15rem; }
+  .install-status.available { color: var(--success); }
+  .install-status.missing { color: var(--muted); }
+  .install-info { flex: 1; min-width: 0; }
+  .install-name { font-size: 0.8125rem; }
+  .install-note { font-size: 0.6875rem; color: var(--muted); margin-top: 0.15rem; }
+  .install-cmd {
+    display: flex; align-items: center; gap: 0.4rem; margin-top: 0.3rem;
+  }
+  .install-cmd code {
+    flex: 1; font-size: 0.72rem; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: var(--bg); padding: 0.3rem 0.5rem; border-radius: 4px;
+    white-space: pre-wrap; word-break: break-word; line-height: 1.4;
+    cursor: pointer; border: 1px solid transparent; transition: border-color 0.15s;
+  }
+  .install-cmd code:hover { border-color: var(--accent); }
+  .install-copy {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 4px; padding: 0.2rem 0.4rem; font-size: 0.65rem;
+    cursor: pointer; flex-shrink: 0; transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+  }
+  .install-copy:hover { color: var(--accent); border-color: var(--accent); }
+  .install-copy.copied { color: var(--success); border-color: var(--success); }
 </style>
 </head>
 <body>
@@ -354,6 +390,7 @@
     <h1>Sonus</h1>
     <span class="subtitle">Multi-engine text-to-speech</span>
     <a href="/api-docs" target="_blank" style="margin-left:auto;font-size:0.8rem;color:var(--accent);text-decoration:none;white-space:nowrap">API Docs</a>
+    <button class="btn btn-sm btn-ghost" id="install-btn" style="margin-left:0.5rem">Install Models</button>
   </div>
 
   <div class="panels">
@@ -551,6 +588,17 @@
     <div style="margin-top:1rem;display:flex;gap:0.5rem;justify-content:flex-end">
       <button class="btn btn-ghost" id="close-params-btn">Close</button>
       <button class="btn" id="regen-btn">Regenerate</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Install Models Modal ===== -->
+<div class="modal-overlay" id="install-modal">
+  <div class="modal" style="max-width:780px">
+    <h2>Install Models</h2>
+    <div id="install-content" style="font-size:0.8125rem;line-height:1.6"></div>
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn btn-ghost" id="close-install-btn">Close</button>
     </div>
   </div>
 </div>

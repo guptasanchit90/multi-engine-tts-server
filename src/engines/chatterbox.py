@@ -67,6 +67,12 @@ class ChatterboxEngine(BaseEngine):
                 "available": _model_path(MODELS_DIR, folder) is not None,
                 "voices": {"built_in": [], "cloneable": scan_wav_voices(VOICES_DIR)},
                 "languages": ["en"],
+                "install": {
+                    "source": "huggingface",
+                    "commands": [
+                        "huggingface-cli download mlx-community/Chatterbox-Turbo-TTS-fp16 --local-dir models/chatterbox/Chatterbox-Turbo-TTS-fp16",
+                    ],
+                },
             }
         ]
 

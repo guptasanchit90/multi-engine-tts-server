@@ -428,7 +428,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const idx = cats[cat].indexOf(current);
                 if (idx >= 0) cats[cat][idx] = data.name;
               }
-            });
+      });
           });
           models.forEach((m) => {
             if (m.voices && m.voices.cloneable) {
@@ -673,6 +673,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Escape") {
       paramsModal.classList.remove("show");
       addVoiceModal.classList.remove("show");
+      installModal.classList.remove("show");
     }
   });
 
@@ -945,4 +946,83 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.removeChild(ta);
     }
   });
+
+  // ── Install Models Modal ────────────────────────────────────────────────────
+  const installModal = document.getElementById("install-modal");
+  const installBtn = document.getElementById("install-btn");
+  const closeInstallBtn = document.getElementById("close-install-btn");
+  const installContent = document.getElementById("install-content");
+
+  installBtn.addEventListener("click", () => {
+    renderInstallGuide();
+    installModal.classList.add("show");
+  });
+  closeInstallBtn.addEventListener("click", () => installModal.classList.remove("show"));
+  installModal.addEventListener("click", (e) => {
+    if (e.target === installModal) installModal.classList.remove("show");
+  });
+
+  function renderInstallGuide() {
+    const groups = {};
+    for (const m of models) {
+      if (!m.install) continue;
+      const eng = m.engine || "other";
+      if (!groups[eng]) groups[eng] = [];
+      groups[eng].push(m);
+    }
+    const engineNames = Object.keys(groups).sort();
+    if (!engineNames.length) {
+      installContent.innerHTML = '<div class="empty">No install information available.</div>';
+      return;
+    }
+    let html = "";
+    for (const eng of engineNames) {
+      const items = groups[eng].sort((a, b) => a.name.localeCompare(b.name));
+      html += `<div class="install-group"><h3>${escapeHtml(eng)}</h3>`;
+      for (const item of items) {
+        const available = item.available;
+        const statusIcon = available ? "&#10003;" : "&#10007;";
+        const statusClass = available ? "available" : "missing";
+        const note = item.install.note ? `<div class="install-note">${escapeHtml(item.install.note)}</div>` : "";
+        html += `<div class="install-model">
+          <div class="install-status ${statusClass}">${statusIcon}</div>
+          <div class="install-info">
+            <div class="install-name">${escapeHtml(item.name)}</div>
+            ${note}
+            ${item.install.commands.map((cmd) => `
+              <div class="install-cmd">
+                <code class="install-code" data-cmd="${escapeHtml(cmd)}">${escapeHtml(cmd)}</code>
+                <button class="install-copy" data-cmd="${escapeHtml(cmd)}">Copy</button>
+              </div>
+            `).join("")}
+          </div>
+        </div>`;
+      }
+      html += "</div>";
+    }
+    installContent.innerHTML = html;
+
+    // Wire copy buttons + click-to-copy on code blocks
+    installContent.querySelectorAll(".install-copy, .install-code").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        const cmd = el.dataset.cmd;
+        if (!cmd) return;
+        navigator.clipboard.writeText(cmd).then(() => {
+          const copyBtn = el.classList.contains("install-copy") ? el : el.parentElement.querySelector(".install-copy");
+          if (copyBtn) {
+            copyBtn.textContent = "Copied!";
+            copyBtn.classList.add("copied");
+            setTimeout(() => { copyBtn.textContent = "Copy"; copyBtn.classList.remove("copied"); }, 2000);
+          }
+        }).catch(() => {
+          const ta = document.createElement("textarea");
+          ta.value = cmd;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        });
+      });
+    });
+  }
 });

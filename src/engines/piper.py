@@ -72,6 +72,13 @@ class PiperEngine(BaseEngine):
                 "available": bool(voices),
                 "voices": {"built_in": sorted(voices), "cloneable": []},
                 "languages": sorted({v.split("-")[0].split("_")[0].lower() for v in voices}),
+                "install": {
+                    "source": "piper",
+                    "commands": [
+                        "python -m piper.download_voices --download-dir models/piper <voice_name>",
+                    ],
+                    "note": "Replace <voice_name> with e.g. en_US-lessac-medium",
+                },
             }
         ]
 
