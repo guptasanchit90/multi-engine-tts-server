@@ -235,6 +235,31 @@
   .panel-body::-webkit-scrollbar-track { background: transparent; }
   .panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+  /* Filter bar */
+  .panel-filters {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex-shrink: 0;
+  }
+  .filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.3rem;
+  }
+  .filter-row select {
+    padding: 0.2rem 0.3rem;
+    font-size: 0.65rem;
+    min-height: 22px;
+  }
+  .filter-row:last-child {
+    grid-template-columns: 1fr auto;
+  }
+  .filter-row:last-child select {
+    min-width: 0;
+  }
   .range-label { display: flex; justify-content: space-between; font-size: 0.6875rem; color: var(--muted); }
   .params-field { margin-bottom: 0.75rem; }
   .params-field:last-child { margin-bottom: 0; }
@@ -283,14 +308,15 @@
               <option value="">— Select a model —</option>
             </select>
             <div class="voice-hint" id="model-desc"></div>
+            <div class="voice-hint" id="model-langs"></div>
           </div>
 
           <div class="voice-field" id="voice-speaker">
             <div class="form-group">
               <label for="speaker_name">Speaker Name</label>
-              <input id="speaker_name" placeholder="e.g. af_heart, Vivian" list="cloneable-voices" autocomplete="off">
-              <datalist id="cloneable-voices"></datalist>
-              <div class="voice-hint" id="speaker-hint"></div>
+              <select id="speaker_name">
+                <option value="">— Select a voice —</option>
+              </select>
             </div>
           </div>
 
@@ -304,8 +330,9 @@
           <div class="voice-field" id="voice-clone">
             <div class="form-group">
               <label for="sample_voice_file">Sample Voice File</label>
-              <input id="sample_voice_file" placeholder="e.g. my_voice.wav" list="cloneable-voices" autocomplete="off">
-              <div class="voice-hint" id="clone-hint"></div>
+              <select id="sample_voice_file">
+                <option value="">— Select a voice file —</option>
+              </select>
             </div>
           </div>
 
@@ -349,6 +376,27 @@
       <div class="panel-header">
         <span>Outputs</span>
         <button class="btn btn-sm btn-ghost" id="clear-outputs-btn" title="Delete all">Clear</button>
+      </div>
+      <div class="panel-filters" id="output-filters" style="display:none">
+        <div class="filter-row">
+          <select id="filter-engine"><option value="">Engine</option></select>
+          <select id="filter-model"><option value="">Model</option></select>
+        </div>
+        <div class="filter-row">
+          <select id="filter-time">
+            <option value="">All time</option>
+            <option value="5">Last 5 min</option>
+            <option value="15">Last 15 min</option>
+            <option value="30">Last 30 min</option>
+            <option value="60">Last 1 hr</option>
+            <option value="360">Last 6 hr</option>
+            <option value="720">Last 12 hr</option>
+            <option value="1440">Last 1 day</option>
+            <option value="4320">Last 3 days</option>
+            <option value="10080">Last 7 days</option>
+          </select>
+          <button class="btn btn-sm btn-ghost" id="clear-filters-btn" style="font-size:0.65rem;padding:0.2rem 0.4rem">Clear</button>
+        </div>
       </div>
       <div class="panel-body" id="output-panel"></div>
     </div>

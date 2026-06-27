@@ -14,8 +14,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 try:
     import uvicorn
-    from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-    from fastapi.responses import FileResponse, JSONResponse
+    from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+    from fastapi.responses import FileResponse, JSONResponse, Response
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, field_validator
 except ImportError:
@@ -47,92 +47,34 @@ app = FastAPI(
 )
 
 # ---------------------------------------------------------------------------
-# Model manifest — friendly aliases for OpenAI-compatible endpoint
-# Each entry maps an alias to an internal engine+model pair and declares
-# capabilities that the web UI uses to show the relevant voice fields.
+# Model manifest — built dynamically from each engine's list_models()
 # ---------------------------------------------------------------------------
 
-MODEL_MANIFEST: dict[str, dict] = {
-    "kokoro": {
-        "id": "kokoro",
-        "name": "Kokoro 82M",
-        "engine": "kokoro",
-        "model": "kokoro-v1.0",
-        "mode": "speaker",
-        "capabilities": ["speaker", "voice_blend"],
-        "description": "Fast ONNX-based TTS with 9 languages and voice blending",
-    },
-    "qwen-voice": {
-        "id": "qwen-voice",
-        "name": "Qwen3 Pro Voice Design",
-        "engine": "qwen",
-        "model": "Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit",
-        "mode": "design",
-        "capabilities": ["voice_prompt"],
-        "description": "Synthesize voices from natural language descriptions",
-    },
-    "qwen-clone": {
-        "id": "qwen-clone",
-        "name": "Qwen3 Pro Voice Clone",
-        "engine": "qwen",
-        "model": "Qwen3-TTS-12Hz-1.7B-Base-8bit",
-        "mode": "clone",
-        "capabilities": ["voice_clone"],
-        "description": "Clone a voice from a reference WAV sample",
-    },
-    "qwen-lite": {
-        "id": "qwen-lite",
-        "name": "Qwen3 Lite",
-        "engine": "qwen",
-        "model": "Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
-        "mode": "custom",
-        "capabilities": ["speaker"],
-        "description": "Lightweight 0.6B model with preset speakers",
-    },
-    "chatterbox": {
-        "id": "chatterbox",
-        "name": "Chatterbox Turbo",
-        "engine": "chatterbox",
-        "model": "chatterbox-turbo-fp16",
-        "mode": "clone",
-        "capabilities": ["voice_clone"],
-        "description": "High-quality voice cloning via MLX (5s+ reference recommended)",
-    },
-    "piper": {
-        "id": "piper",
-        "name": "Piper TTS",
-        "engine": "piper",
-        "model": "",
-        "mode": "speaker",
-        "capabilities": ["speaker"],
-        "description": "Lightweight ONNX-based TTS, 100+ downloadable voices",
-    },
-}
+def _build_manifest() -> dict[str, dict]:
+    manifest = {}
+    for engine in ENGINES:
+        for m in engine.list_models():
+            eid = m["id"]
+            manifest[eid] = {
+                "id": eid,
+                "name": m.get("name", eid),
+                "engine": m["engine"],
+                "model": m["model"],
+                "mode": m.get("mode", "speaker"),
+                "capabilities": m.get("capabilities", []),
+                "description": m.get("description", ""),
+                "available": m.get("available", False),
+                "voices": m.get("voices", {}),
+                "languages": m.get("languages", []),
+            }
+    return manifest
+
 
 # Optional mapping from OpenAI standard names to our aliases
 OPENAI_MODEL_ALIASES: dict[str, str] = {
     "tts-1": "kokoro",
     "tts-1-hd": "qwen-voice",
 }
-
-
-def _with_availability(entries: list[dict]) -> list[dict]:
-    result = []
-    for e in entries:
-        entry = dict(e)
-        entry["available"] = False
-        for engine in ENGINES:
-            if engine.engine_name == entry["engine"]:
-                if entry["model"]:
-                    for m in engine.list_models():
-                        if m["model"] == entry["model"]:
-                            entry["available"] = m["available"]
-                            break
-                else:
-                    entry["available"] = any(m["available"] for m in engine.list_models())
-                break
-        result.append(entry)
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -225,9 +167,10 @@ def _find_engine(model: str):
 
 def _resolve_openai_model(model_input: str) -> dict:
     resolved = OPENAI_MODEL_ALIASES.get(model_input, model_input)
-    entry = MODEL_MANIFEST.get(resolved)
+    manifest = _build_manifest()
+    entry = manifest.get(resolved)
     if not entry:
-        known = sorted(MODEL_MANIFEST)
+        known = sorted(manifest)
         raise HTTPException(
             status_code=422,
             detail=f"Unknown model '{model_input}'. Known: {known}",
@@ -256,9 +199,8 @@ def _openai_to_internal(req: OpenAIRequest, manifest: dict) -> dict:
     }
 
     caps = manifest["capabilities"]
-    is_piper = manifest["engine"] == "piper"
 
-    if is_piper:
+    if not manifest["model"]:
         d["model"] = req.voice or ""
     else:
         d["model"] = manifest["model"]
@@ -585,12 +527,12 @@ def delete_output(filename: str):
 
 @app.get("/v1/models", summary="List available models (OpenAI-compatible)")
 def list_v1_models():
-    entries = _with_availability(list(MODEL_MANIFEST.values()))
-    return JSONResponse(content=entries)
+    manifest = _build_manifest()
+    return JSONResponse(content=list(manifest.values()))
 
 
 @app.post("/v1/audio/speech", summary="Generate speech (OpenAI-compatible)")
-async def openai_speech(req: OpenAIRequest):
+async def openai_speech(req: OpenAIRequest, request: Request):
     manifest = _resolve_openai_model(req.model)
 
     caps = manifest.get("capabilities", [])
@@ -625,38 +567,63 @@ async def openai_speech(req: OpenAIRequest):
         wav_path = await asyncio.to_thread(engine.generate, request_dict, tmp_dir)
         trim_silence(wav_path)
 
-        output_id = uuid.uuid4().hex
+        save_output = request.headers.get("x-save-output", "false").lower() == "true"
+
         content_type = "audio/mpeg"
         filename = "speech.mp3"
 
-        if req.response_format == "wav":
-            output_path = os.path.join(OUTPUTS_DIR, f"{output_id}.wav")
-            shutil.copy2(wav_path, output_path)
-            content_type = "audio/wav"
-            filename = "speech.wav"
-        elif req.response_format == "pcm":
-            output_path = os.path.join(OUTPUTS_DIR, f"{output_id}.pcm")
-            if not wav_to_pcm(wav_path, output_path):
-                raise HTTPException(
-                    status_code=500,
-                    detail="WAV-to-PCM conversion failed — is ffmpeg installed?",
-                )
-            content_type = "audio/L16"
-            filename = "speech.pcm"
-        else:
-            output_path = os.path.join(OUTPUTS_DIR, f"{output_id}.mp3")
-            if not wav_to_mp3(wav_path, output_path):
-                raise HTTPException(
-                    status_code=500,
-                    detail="WAV-to-MP3 conversion failed — is ffmpeg installed?",
-                )
+        if save_output:
+            output_id = uuid.uuid4().hex
+            if req.response_format == "wav":
+                output_path = os.path.join(OUTPUTS_DIR, f"{output_id}.wav")
+                shutil.copy2(wav_path, output_path)
+                content_type = "audio/wav"
+                filename = "speech.wav"
+            elif req.response_format == "pcm":
+                output_path = os.path.join(OUTPUTS_DIR, f"{output_id}.pcm")
+                if not wav_to_pcm(wav_path, output_path):
+                    raise HTTPException(
+                        status_code=500,
+                        detail="WAV-to-PCM conversion failed — is ffmpeg installed?",
+                    )
+                content_type = "audio/L16"
+                filename = "speech.pcm"
+            else:
+                output_path = os.path.join(OUTPUTS_DIR, f"{output_id}.mp3")
+                if not wav_to_mp3(wav_path, output_path):
+                    raise HTTPException(
+                        status_code=500,
+                        detail="WAV-to-MP3 conversion failed — is ffmpeg installed?",
+                    )
 
-        params = {"model": req.model, "input": req.input, "voice": req.voice, "speed": req.speed, "seed": effective_seed}
-        try:
-            with open(output_path + ".json", "w") as fh:
-                json.dump(params, fh)
-        except OSError:
-            pass
+            params = {"model": req.model, "input": req.input, "voice": req.voice, "speed": req.speed, "seed": effective_seed}
+            try:
+                with open(output_path + ".json", "w") as fh:
+                    json.dump(params, fh)
+            except OSError:
+                pass
+        else:
+            if req.response_format == "wav":
+                output_path = wav_path
+                content_type = "audio/wav"
+                filename = "speech.wav"
+            elif req.response_format == "pcm":
+                output_path = os.path.join(tmp_dir, "output.pcm")
+                if not wav_to_pcm(wav_path, output_path):
+                    raise HTTPException(
+                        status_code=500,
+                        detail="WAV-to-PCM conversion failed — is ffmpeg installed?",
+                    )
+                content_type = "audio/L16"
+                filename = "speech.pcm"
+            else:
+                output_path = os.path.join(tmp_dir, "output.mp3")
+                if not wav_to_mp3(wav_path, output_path):
+                    raise HTTPException(
+                        status_code=500,
+                        detail="WAV-to-MP3 conversion failed — is ffmpeg installed?",
+                    )
+
     except HTTPException:
         raise
     except Exception as e:
@@ -665,12 +632,21 @@ async def openai_speech(req: OpenAIRequest):
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    return FileResponse(
-        path=output_path,
-        media_type=content_type,
-        filename=filename,
-        headers={"X-Seed": str(effective_seed)},
-    )
+    if save_output:
+        return FileResponse(
+            path=output_path,
+            media_type=content_type,
+            filename=filename,
+            headers={"X-Seed": str(effective_seed)},
+        )
+    else:
+        with open(output_path, "rb") as f:
+            data = f.read()
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={"X-Seed": str(effective_seed), "Content-Disposition": f'inline; filename="{filename}"'},
+        )
 
 
 app.mount("/", StaticFiles(directory="static", html=True), name="ui")

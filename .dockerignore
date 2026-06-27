@@ -25,6 +25,8 @@ outputs/
 docs/
 CONTRIBUTING.md
 AGENTS.md
+CHANGELOG.md
+pyproject.toml
 
 # Temporary files
 temp_*/

@@ -153,10 +153,16 @@ class KokoroEngine(BaseEngine):
     def list_models(self) -> list[dict]:
         return [
             {
-                "engine":    "kokoro",
-                "model":     MODEL_ID,
-                "mode":      "speaker",
-                "available": _model_available(),
+                "id":          "kokoro",
+                "name":        "Kokoro 82M",
+                "engine":      "kokoro",
+                "model":       MODEL_ID,
+                "mode":        "speaker",
+                "capabilities": ["speaker", "voice_blend"],
+                "description": "Fast ONNX-based TTS with 9 languages and voice blending",
+                "available":   _model_available(),
+                "voices":      {"built_in": sorted(_ALL_VOICES), "cloneable": []},
+                "languages":   sorted(set(_LANG_MAP.values())),
             }
         ]
 

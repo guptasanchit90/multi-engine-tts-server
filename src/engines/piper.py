@@ -62,23 +62,19 @@ class PiperEngine(BaseEngine):
 
     def list_models(self) -> list[dict]:
         voices = _scan_voices()
-        if not voices:
-            return [
-                {
-                    "engine": "piper",
-                    "model": "(no voices downloaded)",
-                    "mode": "speaker",
-                    "available": False,
-                }
-            ]
         return [
             {
+                "id": "piper",
+                "name": "Piper TTS",
                 "engine": "piper",
-                "model": name,
+                "model": "",
                 "mode": "speaker",
-                "available": True,
+                "capabilities": ["speaker"],
+                "description": "Lightweight ONNX-based TTS, 100+ downloadable voices",
+                "available": bool(voices),
+                "voices": {"built_in": sorted(voices), "cloneable": []},
+                "languages": sorted({v.split("-")[0].split("_")[0].lower() for v in voices}),
             }
-            for name in sorted(voices)
         ]
 
     def list_voices(self) -> dict:

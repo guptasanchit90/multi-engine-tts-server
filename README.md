@@ -2,35 +2,51 @@
 
 Run high-quality, offline text-to-speech on your Mac. No cloud. No API keys. Returns MP3.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.13+-blue.svg)](.python-version)
+[![Platform](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black)](https://www.apple.com/mac/)
+
 Powered by [MLX](https://github.com/ml-explore/mlx) and [ONNX Runtime](https://onnxruntime.ai/) on Apple Silicon.
+
+---
+
+## Features
+
+- **4 engines** — Qwen3, Kokoro, Piper, Chatterbox Turbo
+- **OpenAI-compatible endpoint** — drop-in replacement for `POST /v1/audio/speech`
+- **Dark-themed web UI** — vanilla JS, no build step, served at `http://localhost:8000/`
+- **Voice cloning & design** — clone from WAV, describe voice in plain English, or pick built-in speakers
+- **Multi-language** — 40+ languages via Piper, 9 via Kokoro
+- **Docker support** — Kokoro & Piper run on any platform via Docker
 
 ---
 
 ## Engines
 
-| Engine | Model | Voices | Best for |
+| Engine | Framework | Voices | Best for |
 |---|---|---|---|
-| **Qwen3** (MLX) | 0.6B / 1.7B | 11 built-in + custom cloning | Best quality, Apple Silicon only |
-| **Kokoro** (ONNX) | kokoro-v1.0 | 54 voices, 9 languages | Fast, multilingual |
-| **Piper** (ONNX) | any voice | 40+ languages, ~80 MB/voice | Fastest, widest language coverage |
+| **Qwen3** | MLX | 11 built-in + custom cloning | Best quality, Apple Silicon only |
+| **Kokoro** | ONNX | 54 voices, 9 languages | Fast, multilingual |
+| **Piper** | ONNX | 40+ languages, ~80 MB/voice | Fastest, widest language coverage |
+| **Chatterbox Turbo** | MLX | Voice cloning only | High-quality cloning, Apple Silicon only |
 
-Engine-specific docs:
+Engine documentation:
 
-- [Qwen3 Engine](docs/engine-qwen.md) — custom voice, voice design, voice cloning
-- [Kokoro Engine](docs/engine-kokoro.md) — multilingual, 54 built-in voices
-- [Piper Engine](docs/engine-piper.md) — fastest inference, widest language support
+- [Qwen3](docs/engines/qwen.md) — custom voice, voice design, voice cloning
+- [Kokoro](docs/engines/kokoro.md) — multilingual, 54 built-in voices
+- [Piper](docs/engines/piper.md) — fastest inference, widest language support
+- [Chatterbox Turbo](docs/engines/chatterbox.md) — voice cloning via MLX
 - [API Reference](docs/api.md) — full endpoint documentation
 
 ---
 
 ## Requirements
 
-- macOS with Apple Silicon (M1 / M2 / M3 / M4)
-- Python 3.10+
+- macOS with Apple Silicon (M1–M4)
+- Python 3.13+ (`brew install python@3.13`)
 - [ffmpeg](https://ffmpeg.org/) — `brew install ffmpeg`
 
-> **Docker / Linux:** Qwen3 requires the MLX Metal backend and cannot run in Docker.
-> Kokoro and Piper can — see the note in each engine's doc.
+> **Docker / Linux:** Qwen3 and Chatterbox require the MLX Metal backend and cannot run in Docker. Kokoro and Piper can — see the note in each engine's doc.
 
 ---
 
@@ -40,9 +56,7 @@ Engine-specific docs:
 git clone https://github.com/YOUR_USERNAME/local-tts-server.git
 cd local-tts-server
 
-pyenv local 3.13.12
-
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 brew install ffmpeg
@@ -69,6 +83,27 @@ curl -X POST http://localhost:8000/tts \
   --output hello.mp3
 ```
 
+### OpenAI-compatible
+
+```bash
+curl -X POST http://localhost:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model": "kokoro", "input": "Hello world", "voice": "af_bella"}' \
+  --output hello.mp3
+```
+
+---
+
+## Documentation
+
+| Resource | Description |
+|---|---|
+| [API Reference](docs/api.md) | All endpoints, request/response schemas, curl examples |
+| [Docs Home](docs/index.md) | Full documentation index |
+| [Development Guide](docs/development.md) | Setup, linting, testing, Docker |
+| [Contributing](CONTRIBUTING.md) | Adding engines, code style, pull requests |
+| [Postman Collection](docs/postman/collection.json) | Pre-configured API requests |
+
 ---
 
 ## Project Structure
@@ -76,15 +111,17 @@ curl -X POST http://localhost:8000/tts \
 ```
 server.py               # FastAPI entry point
 src/
-└── engines/
-    ├── base.py         # TTSEngine protocol
-    ├── qwen.py         # Qwen3 engine
-    ├── kokoro.py       # Kokoro engine
-    └── piper.py        # Piper engine
+  engines/
+    base.py             # TTSEngine protocol + @register
+    qwen.py             # Qwen3 (MLX)
+    chatterbox.py       # Chatterbox Turbo (MLX)
+    kokoro.py           # Kokoro (ONNX)
+    piper.py            # Piper (ONNX)
+static/                 # Web UI (vanilla JS, no build)
+docs/                   # API reference + per-engine docs
 models/                 # Downloaded model files (gitignored)
 voices/                 # WAV files for voice cloning
 outputs/                # Generated MP3 files
-docs/                   # Engine-specific documentation
 ```
 
 ---
@@ -95,4 +132,10 @@ docs/                   # Engine-specific documentation
 - [MLX Audio](https://github.com/Blaizzy/mlx-audio) — MLX audio model library
 - [Kokoro ONNX](https://github.com/thewh1teagle/kokoro-onnx) — Kokoro ONNX runtime wrapper
 - [Piper](https://github.com/rhasspy/piper) — Fast neural TTS
-- [MLX Community](https://huggingface.co/mlx-community) — Pre-converted MLX models
+- [Chatterbox-Turbo-TTS](https://huggingface.co/mlx-community/Chatterbox-Turbo-TTS-fp16) — MLX-converted Chatterbox
+
+---
+
+## License
+
+MIT

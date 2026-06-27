@@ -43,6 +43,51 @@ _MODELS: dict[str, str] = {
     "Qwen3-TTS-12Hz-1.7B-Base-4bit":        "clone",
 }
 
+_MODEL_META: dict[str, dict] = {
+    "Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit": {
+        "id": "qwen-custom",
+        "name": "Qwen3 Pro Custom Voice",
+        "description": "High-quality 1.7B model with preset speakers",
+        "capabilities": ["speaker"],
+    },
+    "Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit": {
+        "id": "qwen-voice",
+        "name": "Qwen3 Pro Voice Design",
+        "description": "Synthesize voices from natural language descriptions",
+        "capabilities": ["voice_prompt"],
+    },
+    "Qwen3-TTS-12Hz-1.7B-Base-8bit": {
+        "id": "qwen-clone-8bit",
+        "name": "Qwen3 Pro Voice Clone (8bit)",
+        "description": "High-fidelity voice cloning",
+        "capabilities": ["voice_clone"],
+    },
+    "Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit": {
+        "id": "qwen-lite",
+        "name": "Qwen3 Lite",
+        "description": "Lightweight 0.6B model with preset speakers",
+        "capabilities": ["speaker"],
+    },
+    "Qwen3-TTS-12Hz-0.6B-VoiceDesign-8bit": {
+        "id": "qwen-lite-voice",
+        "name": "Qwen3 Lite Voice Design",
+        "description": "Lightweight voice design from descriptions",
+        "capabilities": ["voice_prompt"],
+    },
+    "Qwen3-TTS-12Hz-0.6B-Base-8bit": {
+        "id": "qwen-lite-clone",
+        "name": "Qwen3 Lite Voice Clone",
+        "description": "Lightweight voice cloning",
+        "capabilities": ["voice_clone"],
+    },
+    "Qwen3-TTS-12Hz-1.7B-Base-4bit": {
+        "id": "qwen-clone",
+        "name": "Qwen3 Pro Voice Clone",
+        "description": "Clone a voice from a reference WAV sample",
+        "capabilities": ["voice_clone"],
+    },
+}
+
 _SPEAKERS: set[str] = {
     "Ryan", "Aiden", "Ethan", "Chelsie", "Serena", "Vivian",
     "Uncle_Fu", "Dylan", "Eric", "Ono_Anna", "Sohee",
@@ -147,12 +192,31 @@ class QwenEngine(BaseEngine):
         return model in _MODELS
 
     def list_models(self) -> list[dict]:
+        meta = _MODEL_META
+        cloneable = sorted(
+            f for f in os.listdir(VOICES_DIR)
+            if f.lower().endswith(".wav") and not f.startswith(".")
+        ) if os.path.exists(VOICES_DIR) else []
+
+        def _voices(mode: str) -> dict:
+            if mode == "custom":
+                return {"built_in": sorted(_SPEAKERS), "cloneable": cloneable}
+            if mode == "clone":
+                return {"built_in": [], "cloneable": cloneable}
+            return {"built_in": [], "cloneable": []}
+
         return [
             {
+                "id": meta[folder]["id"],
+                "name": meta[folder]["name"],
                 "engine": "qwen",
                 "model": folder,
                 "mode": mode,
+                "capabilities": meta[folder]["capabilities"],
+                "description": meta[folder]["description"],
                 "available": _model_path(MODELS_DIR, folder) is not None,
+                "voices": _voices(mode),
+                "languages": ["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
             }
             for folder, mode in _MODELS.items()
         ]

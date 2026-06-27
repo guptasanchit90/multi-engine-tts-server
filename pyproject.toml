@@ -1,0 +1,23 @@
+[project]
+name = "local-tts-server"
+version = "0.1.0"
+description = "Multi-engine TTS server for Apple Silicon"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+pythonVersion = "3.13"
+include = ["server.py", "src"]
+exclude = ["venv", "models", "outputs"]
+typeCheckingMode = "basic"

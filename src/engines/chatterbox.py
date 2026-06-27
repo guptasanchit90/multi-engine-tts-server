@@ -56,10 +56,16 @@ class ChatterboxEngine(BaseEngine):
         folder = _MODELS.get("chatterbox-turbo-fp16", "")
         return [
             {
+                "id": "chatterbox",
+                "name": "Chatterbox Turbo",
                 "engine": "chatterbox",
                 "model": "chatterbox-turbo-fp16",
                 "mode": "clone",
+                "capabilities": ["voice_clone"],
+                "description": "High-quality voice cloning via MLX (5s+ reference recommended)",
                 "available": _model_path(MODELS_DIR, folder) is not None,
+                "voices": {"built_in": [], "cloneable": scan_wav_voices(VOICES_DIR)},
+                "languages": ["en"],
             }
         ]
 

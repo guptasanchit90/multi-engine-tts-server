@@ -4,6 +4,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let voices = {};
   let voiceDetails = [];
   let outputs = [];
+  let _modelToEngine = {};
+  let filterState = { engine: '', model: '', time: '' };
   let mediaRecorder = null;
   let recordingChunks = [];
 
@@ -16,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const genStatus = document.getElementById("gen-status");
   const modelSelect = document.getElementById("model");
   const modelDesc = document.getElementById("model-desc");
+  const modelLangs = document.getElementById("model-langs");
   const textArea = document.getElementById("text");
   const speedInput = document.getElementById("speed");
   const speedValue = document.getElementById("speed-value");
@@ -27,8 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const speakerName = document.getElementById("speaker_name");
   const voiceDesc = document.getElementById("voice_description");
   const voiceFile = document.getElementById("sample_voice_file");
-  const speakerHint = document.getElementById("speaker-hint");
-  const cloneHint = document.getElementById("clone-hint");
+
   const voiceFields = {
     speaker: document.getElementById("voice-speaker"),
     prompt: document.getElementById("voice-prompt"),
@@ -52,6 +54,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const recordStatus = document.getElementById("record-status");
   const recWave = document.getElementById("recording-wave");
   const clearOutputsBtn = document.getElementById("clear-outputs-btn");
+  const filterEngine = document.getElementById("filter-engine");
+  const filterModel = document.getElementById("filter-model");
+  const filterTime = document.getElementById("filter-time");
+  const clearFiltersBtn = document.getElementById("clear-filters-btn");
+  const outputFiltersEl = document.getElementById("output-filters");
 
   // ── Slider displays ──────────────────────────────────────────────────────
   speedInput.addEventListener("input", () => {
@@ -195,12 +202,15 @@ document.addEventListener("DOMContentLoaded", () => {
       fetch("/outputs/detail").then((r) => r.json()),
     ]).then(([modelData, voiceData, vDetails, outData]) => {
       models = Array.isArray(modelData) ? modelData : Object.values(modelData);
+      _modelToEngine = {};
+      models.forEach((m) => { _modelToEngine[m.id] = m.engine; });
       voices = voiceData;
       voiceDetails = vDetails;
       outputs = outData;
       populateModelSelect();
       renderVoiceList();
       renderOutputList();
+      populateFilterDropdowns();
     }).catch(() => {
       genStatus.textContent = "Failed to load data. Is the server running?";
       genStatus.className = "status-msg show error";
@@ -227,11 +237,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!id) {
       Object.values(voiceFields).forEach((f) => f.classList.remove("active"));
       modelDesc.textContent = "";
+      modelLangs.textContent = "";
       return;
     }
     const model = models.find((m) => m.id === id);
     if (!model) return;
     modelDesc.textContent = model.description || "";
+    const langs = model.languages || [];
+    modelLangs.textContent = langs.length ? "Languages: " + langs.join(", ") : "";
     const caps = model.capabilities || [];
     Object.values(voiceFields).forEach((f) => f.classList.remove("active"));
     for (const cap of caps) {
@@ -242,18 +255,22 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   function updateVoiceHints(model) {
-    const ed = voices[model.engine] || {};
+    const ed = model.voices || {};
     const builtIn = ed.built_in || [];
     const cloneable = ed.cloneable || [];
-    const datalist = document.getElementById("cloneable-voices");
-    datalist.innerHTML = "";
-    cloneable.forEach((v) => { const o = document.createElement("option"); o.value = v; datalist.appendChild(o); });
-    speakerHint.textContent = builtIn.length
-      ? "Built-in: " + builtIn.slice(0, 10).join(", ") + (builtIn.length > 10 ? "..." : "")
-      : "See GET /voices for available speakers";
-    cloneHint.innerHTML = cloneable.length
-      ? "Available: " + cloneable.slice(0, 8).join(", ") + (cloneable.length > 8 ? "..." : "")
-      : 'Place .wav files in the <code>voices/</code> directory';
+
+    speakerName.innerHTML = '<option value="">— Select a voice —</option>';
+    builtIn.forEach((v) => {
+      const o = document.createElement("option"); o.value = v; o.textContent = v;
+      speakerName.appendChild(o);
+    });
+    voiceFile.innerHTML = '<option value="">— Select a voice file —</option>';
+    cloneable.forEach((v) => {
+      const o = document.createElement("option"); o.value = v; o.textContent = v;
+      voiceFile.appendChild(o);
+    });
+
+
   }
 
   // ── Generate (center panel) ──────────────────────────────────────────────
@@ -295,7 +312,10 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const resp = await fetch("/v1/audio/speech", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Save-Output": "true",
+        },
         body: JSON.stringify(body),
       });
       if (!resp.ok) {
@@ -354,6 +374,11 @@ document.addEventListener("DOMContentLoaded", () => {
             if (Array.isArray(cats[cat])) cats[cat] = cats[cat].filter((v) => v !== name);
           });
         });
+        models.forEach((m) => {
+          if (m.voices && m.voices.cloneable) {
+            m.voices.cloneable = m.voices.cloneable.filter((v) => v !== name);
+          }
+        });
         renderVoiceList();
       });
     });
@@ -405,6 +430,12 @@ document.addEventListener("DOMContentLoaded", () => {
               }
             });
           });
+          models.forEach((m) => {
+            if (m.voices && m.voices.cloneable) {
+              const idx = m.voices.cloneable.indexOf(current);
+              if (idx >= 0) m.voices.cloneable[idx] = data.name;
+            }
+          });
         })
         .catch(() => {
           const span = document.createElement("div");
@@ -421,14 +452,65 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // ── Filter helpers ──────────────────────────────────────────────────────
+  function applyFilters(items) {
+    return items.filter((o) => {
+      const eng = _modelToEngine[o.params?.model] || "";
+      if (filterState.engine && eng !== filterState.engine) return false;
+      if (filterState.model && o.params?.model !== filterState.model) return false;
+      if (filterState.time) {
+        const cutoff = Date.now() / 1000 - filterState.time * 60;
+        if ((o.created_at || 0) < cutoff) return false;
+      }
+      return true;
+    });
+  }
+
+  function populateFilterDropdowns() {
+    const hasOutputs = outputs.length > 0;
+    outputFiltersEl.style.display = hasOutputs ? "" : "none";
+    if (!hasOutputs) return;
+
+    const engines = new Set();
+    const models = new Set();
+    for (const o of outputs) {
+      const eng = _modelToEngine[o.params?.model];
+      if (eng) engines.add(eng);
+      if (o.params?.model) models.add(o.params.model);
+    }
+
+    const selEngine = filterEngine.value;
+    const selModel = filterModel.value;
+    filterEngine.innerHTML = '<option value="">Engine</option>';
+    filterModel.innerHTML = '<option value="">Model</option>';
+    for (const e of [...engines].sort()) {
+      const opt = document.createElement("option");
+      opt.value = e; opt.textContent = e;
+      if (e === selEngine) opt.selected = true;
+      filterEngine.appendChild(opt);
+    }
+    for (const m of [...models].sort()) {
+      const opt = document.createElement("option");
+      opt.value = m; opt.textContent = m;
+      if (m === selModel) opt.selected = true;
+      filterModel.appendChild(opt);
+    }
+  }
+
   // ── Output panel (right) ─────────────────────────────────────────────────
   function renderOutputList() {
+    populateFilterDropdowns();
     if (!outputs.length) {
       outputPanel.innerHTML = '<div class="empty">No generated outputs yet.<br>Use the Generate panel to create speech.</div>';
       return;
     }
     let html = "";
-    for (const o of outputs) {
+    const filtered = applyFilters(outputs);
+    if (!filtered.length) {
+      outputPanel.innerHTML = '<div class="empty">No outputs match the current filters.</div>';
+      return;
+    }
+    for (const o of filtered) {
       const actions = `
         <button class="icon-btn" data-toggle="${o.name}" title="Show details">&#9432;</button>
         <button class="icon-btn danger" data-del-out="${o.name}" title="Delete">&times;</button>`;
@@ -512,6 +594,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!resp.ok) return;
     if (_currentAudio) { _currentAudio.pause(); _currentAudio = null; _currentName = null; }
     outputs = [];
+    renderOutputList();
+  });
+
+  // ── Filter event listeners ───────────────────────────────────────────────
+  function applyFilter() {
+    filterState.engine = filterEngine.value;
+    filterState.model = filterModel.value;
+    filterState.time = filterTime.value;
+    renderOutputList();
+  }
+
+  filterEngine.addEventListener("change", applyFilter);
+  filterModel.addEventListener("change", applyFilter);
+  filterTime.addEventListener("change", applyFilter);
+
+  clearFiltersBtn.addEventListener("click", () => {
+    filterEngine.value = "";
+    filterModel.value = "";
+    filterTime.value = "";
+    filterState = { engine: '', model: '', time: '' };
     renderOutputList();
   });
 
@@ -613,11 +715,17 @@ document.addEventListener("DOMContentLoaded", () => {
       voiceNameInput.value = "";
       renderVoiceList();
       fetch("/voices").then((r) => r.json()).then((d) => { voices = d; }).catch(() => {});
-      // Refresh model hints
+      // Refresh model hints — push new voice into current model
       const sel = modelSelect.value;
       if (sel) {
         const m = models.find((mdl) => mdl.id === sel);
-        if (m) updateVoiceHints(m);
+        if (m) {
+          const v = data.name;
+          if (m.voices && m.voices.cloneable && !m.voices.cloneable.includes(v)) {
+            m.voices.cloneable.push(v);
+          }
+          updateVoiceHints(m);
+        }
       }
     } catch (err) {
       uploadStatus.textContent = "Network error: " + err.message;
@@ -672,6 +780,18 @@ document.addEventListener("DOMContentLoaded", () => {
         voiceNameRecord.value = "";
         renderVoiceList();
         fetch("/voices").then((r) => r.json()).then((d) => { voices = d; }).catch(() => {});
+        // Push new voice into current model
+        const sel = modelSelect.value;
+        if (sel) {
+          const m = models.find((mdl) => mdl.id === sel);
+          if (m) {
+            const v = data.name;
+            if (m.voices && m.voices.cloneable && !m.voices.cloneable.includes(v)) {
+              m.voices.cloneable.push(v);
+            }
+            updateVoiceHints(m);
+          }
+        }
       };
       mediaRecorder.start();
       recordBtn.style.display = "none";
