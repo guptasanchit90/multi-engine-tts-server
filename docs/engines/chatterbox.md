@@ -24,6 +24,14 @@ hf download mlx-community/Chatterbox-Turbo-TTS-fp16 \
   --local-dir models/chatterbox/Chatterbox-Turbo-TTS-fp16
 ```
 
+Expected layout:
+
+```
+models/
+└── chatterbox/
+    └── Chatterbox-Turbo-TTS-fp16/
+```
+
 ---
 
 ## Example Request
@@ -64,3 +72,14 @@ curl -X POST http://localhost:8000/tts \
 - Voice cloning only — no built-in speakers or voice design
 - English language only
 - Requires Apple Silicon (MLX Metal backend)
+
+---
+
+## Troubleshooting
+
+| Issue | Fix |
+|---|---|
+| `mlx_audio not found` | Run `source venv/bin/activate` |
+| `Model not found` | Check `GET /models` after downloading |
+| Poor cloning quality | Provide a cleaner reference WAV (minimum 5 seconds) |
+| `ffmpeg` conversion failed | Run `brew install ffmpeg` |

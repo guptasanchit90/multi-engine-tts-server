@@ -25,11 +25,12 @@ Download only the models you need and place them inside `models/qwen/`.
 | `Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` | Custom voice | [link](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit) |
 | `Qwen3-TTS-12Hz-0.6B-Base-8bit` | Voice cloning | [link](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit) |
 
-Download via HuggingFace Hub (with venv active):
+Download via HuggingFace Hub:
 
 ```bash
-pip install huggingface_hub
-huggingface-cli download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit \
+source venv/bin/activate
+pip install -U huggingface_hub
+hf download mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit \
   --local-dir models/qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit
 ```
 
@@ -157,6 +158,15 @@ For natural variation (slightly different each call):
 ```json
 { "temperature": 0.7 }
 ```
+
+---
+
+## Limitations
+
+- Apple Silicon only — no x86 or Docker support
+- Voice Design mode requires a descriptive `voice_description` (minimum ~10 words recommended)
+- Voice Cloning requires a WAV reference file at least 5 seconds long
+- `temperature` only affects Custom Voice mode; Voice Design and Voice Cloning are deterministic
 
 ---
 
