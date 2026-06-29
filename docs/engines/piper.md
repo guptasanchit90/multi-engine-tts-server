@@ -48,12 +48,12 @@ Browse all voices: [huggingface.co/rhasspy/piper-voices](https://huggingface.co/
 The `model` field is the voice stem (filename without `.onnx`):
 
 ```bash
-curl -X POST http://localhost:8000/tts \
+curl -X POST http://localhost:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "Hello! This is Piper TTS running locally.",
     "model": "en_US-lessac-medium",
-    "speed": "normal"
+    "input": "Hello! This is Piper TTS running locally.",
+    "speed": 1.0
   }' \
   --output speech.mp3
 ```
@@ -81,11 +81,11 @@ Examples: `en_US-lessac-medium`, `de_DE-thorsten-low`, `fr_FR-siwis-medium`
 
 Piper uses `length_scale` internally (longer = slower):
 
-| Value | `length_scale` | Effective speed |
+| `speed` value | `length_scale` | Effective speed |
 |---|---|---|
-| `"slow"` | 1.4 | 0.71× |
-| `"normal"` | 1.0 | 1.0× |
-| `"fast"` | 0.75 | 1.33× |
+| `0.71` | 1.4 | 0.71× |
+| `1.0` | 1.0 | 1.0× |
+| `1.33` | 0.75 | 1.33× |
 
 ---
 
@@ -102,6 +102,6 @@ Piper uses `length_scale` internally (longer = slower):
 
 | Problem | Fix |
 |---|---|
-| Voice not found | Run the download command, check `GET /models` |
+| Voice not found | Run the download command, check `GET /v1/models` |
 | Voice not appearing | Verify both `.onnx` and `.onnx.json` exist |
 | Low quality audio | Use `medium` or `high` instead of `low` |

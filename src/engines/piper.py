@@ -69,6 +69,7 @@ class PiperEngine(BaseEngine):
                 "mode": "speaker",
                 "capabilities": ["speaker"],
                 "description": "Lightweight ONNX-based TTS, 100+ downloadable voices",
+                "size": "50-200 MB",
                 "available": bool(voices),
                 "voices": {"built_in": sorted(voices), "cloneable": []},
                 "languages": sorted({v.split("-")[0].split("_")[0].lower() for v in voices}),

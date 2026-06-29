@@ -1,35 +1,48 @@
-# Chatterbox Turbo Engine
+# Chatterbox Engines
 
-[Chatterbox-Turbo-TTS](https://huggingface.co/mlx-community/Chatterbox-Turbo-TTS-fp16) via MLX on Apple Silicon. One job, done well: high-quality voice cloning from a reference WAV.
+[Chatterbox](https://huggingface.co/ResembleAI/chatterbox) and [Chatterbox Turbo](https://huggingface.co/ResembleAI/chatterbox-turbo) via MLX on Apple Silicon. Voice cloning from a reference WAV.
 
 > **Apple Silicon only.** MLX needs the Metal GPU — no x86, no Docker.
 
 ---
 
+## Available Models
+
+| Model key | Family | Size | Languages | Extra features |
+|---|---|---|---|---|
+| `chatterbox-turbo-fp16` | Turbo | ~1.2 GB | English | — |
+| `chatterbox-turbo-4bit` | Turbo | 812 MB | English | Smaller, faster |
+| `chatterbox-fp16` | Regular | 2.7 GB | **16 languages** | Emotion control (`exaggeration`) |
+| `chatterbox-8bit` | Regular | 1.28 GB | **16 languages** | Emotion control, lighter |
+
 ## Model Download
 
-Grab the MLX-converted fp16 weights:
-
+**Turbo:**
 ```bash
-source venv/bin/activate
-hf download mlx-community/Chatterbox-Turbo-TTS-fp16
+hf download mlx-community/Chatterbox-Turbo-TTS-fp16   --local-dir models/chatterbox/Chatterbox-Turbo-TTS-fp16
+hf download mlx-community/Chatterbox-Turbo-TTS-4bit    --local-dir models/chatterbox/Chatterbox-Turbo-TTS-4bit
 ```
 
-The model (~1.2 GB) is cached by HuggingFace. S3TokenizerV2 auto-downloads on first load.
-
-For manual placement:
-
+**Regular (multilingual):**
 ```bash
-hf download mlx-community/Chatterbox-Turbo-TTS-fp16 \
-  --local-dir models/chatterbox/Chatterbox-Turbo-TTS-fp16
+hf download mlx-community/Chatterbox-TTS-fp16  --local-dir models/chatterbox/Chatterbox-TTS-fp16
+hf download mlx-community/Chatterbox-TTS-8bit   --local-dir models/chatterbox/Chatterbox-TTS-8bit
+```
+
+**S3Tokenizer (required by all Chatterbox models):**
+```bash
+hf download mlx-community/S3TokenizerV2 --local-dir models/chatterbox/s3_tokenizer
 ```
 
 Expected layout:
-
 ```
 models/
 └── chatterbox/
-    └── Chatterbox-Turbo-TTS-fp16/
+    ├── Chatterbox-Turbo-TTS-fp16/
+    ├── Chatterbox-Turbo-TTS-4bit/
+    ├── Chatterbox-TTS-fp16/
+    ├── Chatterbox-TTS-8bit/
+    └── s3_tokenizer/              ← S3Tokenizer weights (~495 MB)
 ```
 
 ---
@@ -38,13 +51,26 @@ models/
 
 Drop a WAV in `voices/` first, then:
 
+**Turbo (English):**
 ```bash
-curl -X POST http://localhost:8000/tts \
+curl -X POST http://localhost:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "This is Chatterbox Turbo voice cloning.",
-    "model": "chatterbox-turbo-fp16",
-    "sample_voice_file": "my_voice.wav"
+    "model": "chatterbox-clone",
+    "input": "This is Chatterbox Turbo voice cloning.",
+    "voice": "my_voice.wav"
+  }' \
+  --output speech.mp3
+```
+
+**Regular (multilingual + emotion):**
+```bash
+curl -X POST http://localhost:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "chatterbox-clone",
+    "input": "Olá, tudo bem? Este é um teste de clonagem de voz.",
+    "voice": "my_voice.wav"
   }' \
   --output speech.mp3
 ```
@@ -53,11 +79,13 @@ curl -X POST http://localhost:8000/tts \
 
 ## Parameters
 
-| Field | Required | Notes |
-|---|---|---|
-| `sample_voice_file` | **Yes** | WAV filename in `voices/` (`.wav` optional) |
-| `temperature` | No | `0.0` = same every time; `0.7` = variation |
-| `seed` | No | Fix for reproducible output |
+| Field | Required | Applies to | Notes |
+|---|---|---|---|
+| `voice` | **Yes** | All | WAV filename in `voices/` (`.wav` optional) |
+
+### Supported languages (regular Chatterbox)
+
+`en`, `es`, `fr`, `de`, `it`, `pt`, `pl`, `tr`, `ru`, `nl`, `cs`, `ar`, `zh`, `ja`, `hu`, `ko`
 
 ### Reference audio requirements
 
@@ -70,7 +98,7 @@ curl -X POST http://localhost:8000/tts \
 ## Limitations
 
 - Voice cloning only — no built-in speakers, no voice design
-- English only
+- Turbo models: English only
 - Apple Silicon only
 
 ---
@@ -80,6 +108,7 @@ curl -X POST http://localhost:8000/tts \
 | Problem | Fix |
 |---|---|
 | `mlx_audio not found` | Run `source venv/bin/activate` |
-| Model not found | Check `GET /models` after downloading |
+| Model not found | Check `GET /v1/models` after downloading |
 | Poor clone quality | Cleaner reference WAV, at least 5 seconds |
+| Speech truncates mid-sentence | `cfg_weight` too high for quantized models — keep at `0.0` (default) |
 | ffmpeg failed | Run `brew install ffmpeg` |

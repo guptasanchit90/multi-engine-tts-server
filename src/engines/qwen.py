@@ -1,7 +1,11 @@
 import os
+import re
 import threading
 import warnings
 from pathlib import Path
+
+import numpy as np
+import soundfile as sf
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -9,6 +13,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 _MLX_AVAILABLE = False
 try:
     import mlx.core as mx
+    import mlx.nn as nn
     from mlx_audio.tts.generate import generate_audio
     from mlx_audio.tts.utils import load_model
 
@@ -50,57 +55,54 @@ _MODEL_META: dict[str, dict] = {
         "name": "Qwen3 Pro Custom Voice",
         "description": "High-quality 1.7B model with preset speakers",
         "capabilities": ["speaker"],
+        "size": "3.1 GB",
     },
     "Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit": {
         "id": "qwen-voice",
         "name": "Qwen3 Pro Voice Design",
         "description": "Synthesize voices from natural language descriptions",
         "capabilities": ["voice_prompt"],
+        "size": "3.1 GB",
     },
     "Qwen3-TTS-12Hz-1.7B-Base-8bit": {
         "id": "qwen-clone-8bit",
         "name": "Qwen3 Pro Voice Clone (8bit)",
         "description": "High-fidelity voice cloning",
         "capabilities": ["voice_clone"],
+        "size": "3.1 GB",
     },
     "Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit": {
         "id": "qwen-lite",
         "name": "Qwen3 Lite",
         "description": "Lightweight 0.6B model with preset speakers",
         "capabilities": ["speaker"],
+        "size": "1.3 GB",
     },
     "Qwen3-TTS-12Hz-0.6B-VoiceDesign-8bit": {
         "id": "qwen-lite-voice",
         "name": "Qwen3 Lite Voice Design",
         "description": "Lightweight voice design from descriptions",
         "capabilities": ["voice_prompt"],
+        "size": "1.3 GB",
     },
     "Qwen3-TTS-12Hz-0.6B-Base-8bit": {
         "id": "qwen-lite-clone",
         "name": "Qwen3 Lite Voice Clone",
         "description": "Lightweight voice cloning",
         "capabilities": ["voice_clone"],
+        "size": "1.3 GB",
     },
     "Qwen3-TTS-12Hz-1.7B-Base-4bit": {
         "id": "qwen-clone",
         "name": "Qwen3 Pro Voice Clone",
         "description": "Clone a voice from a reference WAV sample",
         "capabilities": ["voice_clone"],
+        "size": "1.6 GB",
     },
 }
 
 _SPEAKERS: set[str] = {
-    "Ryan",
-    "Aiden",
-    "Ethan",
-    "Chelsie",
-    "Serena",
-    "Vivian",
-    "Uncle_Fu",
-    "Dylan",
-    "Eric",
-    "Ono_Anna",
-    "Sohee",
+    'serena', 'vivian', 'uncle_fu', 'ryan', 'aiden', 'ono_anna', 'sohee', 'eric', 'dylan'
 }
 
 _speaker_embedding_cache: dict[str, mx.array] = {}
@@ -177,6 +179,12 @@ def _get_or_compute_speaker_embedding(model, voice_file: str) -> mx.array:
 
 
 def _inject_speaker_embedding(model, embedding: mx.array) -> None:
+    hidden_size = model.talker.config.hidden_size
+    if embedding.shape[-1] != hidden_size:
+        if not hasattr(model, "_spk_proj"):
+            model._spk_proj = nn.Linear(embedding.shape[-1], hidden_size)
+        embedding = model._spk_proj(embedding)
+
     original_method = model.extract_speaker_embedding
 
     def patched_extract_speaker_embedding(audio, sr=24000):
@@ -230,13 +238,14 @@ class QwenEngine(BaseEngine):
                 "mode": mode,
                 "capabilities": meta[folder]["capabilities"],
                 "description": meta[folder]["description"],
+                "size": meta[folder].get("size", ""),
                 "available": _model_path(MODELS_DIR, folder) is not None,
                 "voices": _voices(mode),
                 "languages": ["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
                 "install": {
                     "source": "huggingface",
                     "commands": [
-                        f"huggingface-cli download mlx-community/{folder} --local-dir models/qwen/{folder}",
+                        f"hf download mlx-community/{folder} --local-dir models/qwen/{folder}",
                     ],
                 },
             }
@@ -406,8 +415,21 @@ class QwenEngine(BaseEngine):
             print(f"[qwen] Generation failed (mode={mode}): {e}")
             raise HTTPException(status_code=500, detail=f"Generation failed: {e}")
 
-        wav_path = os.path.join(tmp_dir, "audio_000.wav")
-        if not os.path.exists(wav_path):
+        wav_path = os.path.join(tmp_dir, "audio.wav")
+        segments = sorted(
+            (f for f in os.listdir(tmp_dir) if re.match(r"audio_\d+\.wav$", f)),
+            key=lambda f: int(re.search(r"(\d+)", f).group(1)),
+        )
+        if not segments:
             raise HTTPException(status_code=500, detail="TTS produced no output file")
+
+        if len(segments) == 1:
+            os.rename(os.path.join(tmp_dir, segments[0]), wav_path)
+        else:
+            audio_parts = []
+            for seg in segments:
+                part, sr = sf.read(os.path.join(tmp_dir, seg))
+                audio_parts.append(part)
+            sf.write(wav_path, np.concatenate(audio_parts), sr)
 
         return wav_path

@@ -5,157 +5,27 @@ The server lives at `http://0.0.0.0:8000`. Hit it with curl, Python, or whatever
 - Interactive docs (Swagger UI): `http://localhost:8000/api-docs`
 - Web UI: `http://localhost:8000/` — a dark-themed form that lets you play with everything
 
-All `/tts` requests return an MP3 file (`audio/mpeg`). Ping. Done.
+## GET /v1/voices — Who can speak?
 
----
-
-## POST /tts — Make some noise
-
-The server picks which engine to use based on the `model` field you send. Simple.
-
-### Request body
-
-| Field | Type | Default | What it does |
-|---|---|---|---|
-| `text` | string | **required** | The words you want spoken |
-| `model` | string | **required** | Which model/voice (see engine docs) |
-| `speaker_name` | string | `null` | A named speaker — Qwen CustomVoice or Kokoro voice ID |
-| `voice_description` | string | `null` | Qwen VoiceDesign: describe the voice; Qwen CustomVoice: set tone/emotion |
-| `sample_voice_file` | string | `null` | Qwen Clone: WAV filename (`.wav` optional) inside `voices/` |
-| `speed` | string | `"normal"` | `"slow"` · `"normal"` · `"fast"` |
-| `temperature` | float | `0.0` | `0` = same result every time; `0.7` = roll the dice (Qwen only) |
-| `seed` | integer | auto | Fix the randomness. Echoed back in `X-Seed` header. |
-| `add_pauses` | boolean | `true` | Breathe at punctuation (`.` `,` `?` `!` — you get the idea) |
-
-### Response
-
-- **Win:** `audio/mpeg` binary, filename `speech.mp3`
-- **Header:** `X-Seed: <integer>` — useful if you want to replay the same output
-- **Lose:** JSON `{"detail": "..."}` with an HTTP error code
-
-### Model cheat sheet
-
-| Model value | Engine | You need this field |
-|---|---|---|
-| `Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` | Qwen | `speaker_name` (optional) |
-| `Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` | Qwen | `speaker_name` (optional) |
-| `Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit` | Qwen | `voice_description` (required) |
-| `Qwen3-TTS-12Hz-0.6B-VoiceDesign-8bit` | Qwen | `voice_description` (required) |
-| `Qwen3-TTS-12Hz-1.7B-Base-8bit` | Qwen | `sample_voice_file` (required) |
-| `Qwen3-TTS-12Hz-0.6B-Base-8bit` | Qwen | `sample_voice_file` (required) |
-| `kokoro-v1.0` | Kokoro | `speaker_name` (optional, defaults to `af_heart`) |
-| `en_US-lessac-medium` | Piper | *(none — the model IS the voice)* |
-| `<any piper voice stem>` | Piper | *(none)* |
-| `chatterbox-turbo-fp16` | Chatterbox | `sample_voice_file` (required) |
-
-### Examples
-
-**Qwen — Custom Voice:**
-```bash
-curl -X POST http://localhost:8000/tts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Hello, this is a custom voice.",
-    "model": "Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit",
-    "speaker_name": "Ryan",
-    "voice_description": "Excited and upbeat",
-    "seed": 42
-  }' --output speech.mp3
-```
-
-**Qwen — Voice Design:**
-```bash
-curl -X POST http://localhost:8000/tts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Welcome to the show.",
-    "model": "Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit",
-    "voice_description": "Deep, warm male narrator with a slight British accent",
-    "speed": "slow"
-  }' --output speech.mp3
-```
-
-**Qwen — Voice Cloning** (drop `my_voice.wav` into `voices/` first):
-```bash
-curl -X POST http://localhost:8000/tts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "This is cloned from the reference voice.",
-    "model": "Qwen3-TTS-12Hz-1.7B-Base-8bit",
-    "sample_voice_file": "my_voice"
-  }' --output speech.mp3
-```
-
-**Kokoro:**
-```bash
-curl -X POST http://localhost:8000/tts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Hello from Kokoro.",
-    "model": "kokoro-v1.0",
-    "speaker_name": "bf_emma",
-    "speed": "normal"
-  }' --output speech.mp3
-```
-
-**Piper:**
-```bash
-curl -X POST http://localhost:8000/tts \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "Hello from Piper.",
-    "model": "en_US-lessac-medium",
-    "speed": "normal"
-  }' --output speech.mp3
-```
-
----
-
-## GET /models — What's installed?
-
-Returns every model, across all engines, with an `available` flag so you know what's ready.
+Flat, searchable list of every voice from every engine. Add WAV files to `voices/` and they show up instantly — no restart needed.
 
 ```bash
-curl http://localhost:8000/models
-```
-
-```json
-[
-  {"engine": "qwen",   "model": "Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit", "mode": "custom",  "available": true},
-  {"engine": "qwen",   "model": "Qwen3-TTS-12Hz-1.7B-Base-8bit",        "mode": "clone",   "available": false},
-  {"engine": "kokoro", "model": "kokoro-v1.0",                           "mode": "speaker", "available": true},
-  {"engine": "piper",  "model": "en_US-lessac-medium",                   "mode": "speaker", "available": true}
-]
-```
-
----
-
-## GET /voices — Who can speak?
-
-All voices, grouped by engine and category. Add WAV files to `voices/` and they show up instantly — no restart needed.
-
-```bash
-curl http://localhost:8000/voices
+curl http://localhost:8000/v1/voices
 ```
 
 ```json
 {
-  "qwen": {
-    "built_in":   ["Aiden", "Chelsie", "Dylan", "Eric", "Ethan", "Ono_Anna", "Ryan", "Serena", "Sohee", "Uncle_Fu", "Vivian"],
-    "cloneable":  ["my_voice.wav"]
-  },
-  "kokoro": {
-    "en-us": ["af_bella", "af_heart", "am_fenrir", ...],
-    "en-gb": ["bf_emma", "bm_george", ...],
-    "ja":    ["jf_alpha", "jm_kumo", ...],
-    "zh":    ["zf_xiaobei", "zm_yunxi", ...]
-  },
-  "piper": {
-    "en_US": ["en_US-lessac-medium"],
-    "en_GB": ["en_GB-alba-medium"]
-  }
+  "object": "list",
+  "data": [
+    {"id": "Ryan", "engine": "qwen", "category": "built_in"},
+    {"id": "Vivian", "engine": "qwen", "category": "built_in"},
+    {"id": "af_heart", "engine": "kokoro", "category": "built_in", "language": "en-us"},
+    {"id": "my_voice.wav", "engine": "qwen", "category": "cloneable", "size": 123456, "duration": 5.2, "url": "/voice/my_voice.wav"}
+  ]
 }
 ```
+
+Cloneable entries include `size`, `duration`, `created_at`, and `url`.
 
 ---
 
@@ -168,12 +38,29 @@ curl http://localhost:8000/v1/models
 ```
 
 ```json
-[
-  {"id": "kokoro", "name": "Kokoro 82M", "engine": "kokoro", "capabilities": ["speaker", "voice_blend"], "available": true, ...},
-  {"id": "qwen-voice", "name": "Qwen3 Pro Voice Design", "engine": "qwen", "capabilities": ["voice_prompt"], "available": true, ...},
-  {"id": "qwen-clone", "name": "Qwen3 Pro Voice Clone", "engine": "qwen", "capabilities": ["voice_clone"], "available": true, ...}
-]
+{"object": "list", "data": [
+  {"id": "kokoro", "object": "model", "created": 1719000000, "owned_by": "kokoro"},
+  {"id": "qwen-voice", "object": "model", "created": 1719000000, "owned_by": "qwen"}
+]}
 ```
+
+Add `?extras=true` for full detail (capabilities, voices, languages, install info).
+
+---
+
+## GET /v1/models/{model_id} — Model detail
+
+Get a single model by ID. Returns the same shape as the list endpoint.
+
+```bash
+curl http://localhost:8000/v1/models/kokoro
+```
+
+```json
+{"id": "kokoro", "object": "model", "created": 1719000000, "owned_by": "kokoro"}
+```
+
+Also supports `?extras=true` for full detail.
 
 ---
 

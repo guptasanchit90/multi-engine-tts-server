@@ -64,24 +64,20 @@ Pick a built-in speaker. Optionally set the vibe with `voice_description`.
 **Built-in speakers:** `Ryan`, `Aiden`, `Ethan`, `Chelsie`, `Serena`, `Vivian`, `Uncle_Fu`, `Dylan`, `Eric`, `Ono_Anna`, `Sohee`
 
 ```bash
-curl -X POST http://localhost:8000/tts \
+curl -X POST http://localhost:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "Hello, welcome to the show.",
-    "model": "Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit",
-    "speaker_name": "Ryan",
-    "voice_description": "Excited and upbeat",
-    "speed": "normal",
-    "temperature": 0.0,
-    "seed": 42
+    "model": "qwen-voice",
+    "input": "Hello, welcome to the show.",
+    "voice": "Ryan",
+    "speed": 1.0
   }' \
   --output speech.mp3
 ```
 
 | Field | Required | Notes |
 |---|---|---|
-| `speaker_name` | No | Defaults to `"Vivian"` |
-| `voice_description` | No | Sets tone/emotion (e.g. `"calm and professional"`) |
+| `voice` | No | Speaker name (defaults to `"Vivian"`); can include tone via `|` separator e.g. `"Ryan|calm and professional"` |
 
 ---
 
@@ -90,20 +86,20 @@ curl -X POST http://localhost:8000/tts \
 Describe a voice in plain English. The model builds it on the fly.
 
 ```bash
-curl -X POST http://localhost:8000/tts \
+curl -X POST http://localhost:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "Welcome to the evening news.",
-    "model": "Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit",
-    "voice_description": "Deep, authoritative male news anchor with a slight British accent",
-    "speed": "normal"
+    "model": "qwen-voice",
+    "input": "Welcome to the evening news.",
+    "voice": "Deep, authoritative male news anchor with a slight British accent",
+    "speed": 1.0
   }' \
   --output speech.mp3
 ```
 
 | Field | Required | Notes |
 |---|---|---|
-| `voice_description` | **Yes** | Plain English — describe the voice you want |
+| `voice` | **Yes** | Plain English — describe the voice you want |
 
 Try these:
 - `"Warm, friendly female customer support agent"`
@@ -117,19 +113,19 @@ Try these:
 Clone any voice from a WAV file. Drop it in `voices/`, call the API — that's it.
 
 ```bash
-curl -X POST http://localhost:8000/tts \
+curl -X POST http://localhost:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "This will be spoken in the cloned voice.",
-    "model": "Qwen3-TTS-12Hz-1.7B-Base-8bit",
-    "sample_voice_file": "my_voice"
+    "model": "qwen-clone",
+    "input": "This will be spoken in the cloned voice.",
+    "voice": "my_voice"
   }' \
   --output speech.mp3
 ```
 
 | Field | Required | Notes |
 |---|---|---|
-| `sample_voice_file` | **Yes** | Filename in `voices/` (`.wav` extension optional) |
+| `voice` | **Yes** | Filename in `voices/` (`.wav` extension optional) |
 
 **Pro tip for better clones:** Add a `.txt` sidecar with the exact words spoken:
 
@@ -162,7 +158,7 @@ Want natural variation (different each call)?
 ## Limitations
 
 - Apple Silicon only — no x86, no Docker
-- Voice Design needs a descriptive `voice_description` (~10 words minimum recommended)
+- Voice Design needs a descriptive `voice` field (~10 words minimum recommended)
 - Voice Cloning needs a WAV at least 5 seconds long
 - `temperature` only works in Custom Voice mode; Design and Cloning are deterministic
 
@@ -173,7 +169,7 @@ Want natural variation (different each call)?
 | Problem | Fix |
 |---|---|
 | `mlx_audio not found` | Run `source venv/bin/activate` |
-| `Model folder not found` | Check the folder name — use `GET /models` |
+| `Model folder not found` | Check the folder name — use `GET /v1/models` |
 | WAV-to-MP3 failed | Run `brew install ffmpeg` |
 | Bad clone quality | Add a `.txt` transcript next to the `.wav` |
 | High memory usage | Switch to 0.6B Lite models |

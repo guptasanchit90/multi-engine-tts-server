@@ -1,23 +1,47 @@
+import logging
 import subprocess
 
-try:
-    from pydub import AudioSegment
-    from pydub.silence import detect_nonzero_sound
-except ImportError:
-    AudioSegment = None
+import numpy as np
+import soundfile as sf
+
+logger = logging.getLogger(__name__)
+
+NORM_TARGET = 0.9
 
 
-def trim_silence(wav_path: str) -> None:
-    if AudioSegment is None:
-        return
+def normalize_loudness(wav_path: str) -> None:
     try:
-        audio = AudioSegment.from_file(wav_path, format="wav")
-        nonsilent = detect_nonzero_sound(audio, min_silence_len=100, silence_thresh=-50)
-        if nonsilent:
-            trimmed = audio[nonsilent[0][0] : nonsilent[-1][1]]
-            trimmed.export(wav_path, format="wav")
+        audio, sr = sf.read(wav_path)
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+        peak = np.max(np.abs(audio))
+        if peak < 1e-10:
+            return
+        scale = NORM_TARGET / peak
+        if abs(scale - 1.0) < 0.01:
+            return
+        sf.write(wav_path, audio * scale, sr)
     except Exception:
-        pass
+        logger.exception("normalize_loudness failed")
+
+
+def trim_silence(wav_path: str, silence_thresh: float = 0.005, min_silence_len: int = 500) -> None:
+    try:
+        audio, sr = sf.read(wav_path)
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
+        rms = np.sqrt(np.mean(audio**2))
+        adaptive_thresh = max(silence_thresh, rms * 0.01)
+        mask = np.abs(audio) > adaptive_thresh
+        if not mask.any():
+            return
+        nonzero = np.where(mask)[0]
+        start = nonzero[0]
+        end = nonzero[-1] + 1 + min_silence_len
+        trimmed = audio[max(0, start) : min(end, len(audio))]
+        sf.write(wav_path, trimmed, sr)
+    except Exception:
+        logger.exception("trim_silence failed")
 
 
 def wav_to_mp3(wav_path: str, mp3_path: str) -> bool:

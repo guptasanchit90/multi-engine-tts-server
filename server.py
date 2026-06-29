@@ -14,8 +14,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 try:
     import uvicorn
-    from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-    from fastapi.responses import FileResponse, JSONResponse, Response
+    from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
+    from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel, field_validator
 except ImportError:
@@ -23,21 +23,30 @@ except ImportError:
     print("Run: pip install -r requirements.txt")
     sys.exit(1)
 
-from src.audio import trim_silence, wav_to_mp3, wav_to_pcm
-from src.engines.base import discover
+from src.audio import normalize_loudness, trim_silence, wav_to_mp3, wav_to_pcm
+from src.engines.base import discover as discover_tts
+from src.stt.base import discover as discover_stt
 from src.utils import (
     VOICES_DIR,
     convert_to_wav_24k,
     get_audio_duration,
     resolve_voice,
-    scan_wav_voices,
 )
 
 import src.engines  # noqa: F401
+import src.stt  # noqa: F401
 
-ENGINES = discover()
+TTS_ENGINES = discover_tts()
+STT_ENGINES = discover_stt()
 
 OUTPUTS_DIR = os.path.join(os.getcwd(), "outputs", "server")
+
+# Simple TTL cache for /outputs/detail
+_outputs_cache = {"ts": 0, "data": None}
+OUTPUTS_CACHE_TTL = 2.0
+
+def _invalidate_outputs_cache():
+    _outputs_cache["ts"] = 0
 SPEED_MAP = {
     "slow": 0.8,
     "normal": 1.0,
@@ -50,15 +59,11 @@ app = FastAPI(
     title="Sonus",
     description=(
         "Sonus — Speak freely. Multi-engine, offline text-to-speech server "
-        "with OpenAI-compatible endpoint."
+        "with OpenAI-compatible TTS and STT endpoints."
     ),
     version="1.0.0",
     docs_url="/api-docs",
     openapi_tags=[
-        {
-            "name": "text-to-speech",
-            "description": "Generate speech from text using any supported engine.",
-        },
         {
             "name": "models-and-voices",
             "description": "Explore available models, voices, and engine capabilities.",
@@ -75,6 +80,10 @@ app = FastAPI(
             "name": "system",
             "description": "Health check and server status utilities.",
         },
+        {
+            "name": "speech-to-text",
+            "description": "Transcribe audio and list available STT models.",
+        },
     ],
 )
 
@@ -85,7 +94,7 @@ app = FastAPI(
 
 def _build_manifest(*, available_only: bool = True) -> dict[str, dict]:
     manifest = {}
-    for engine in ENGINES:
+    for engine in TTS_ENGINES:
         for m in engine.list_models():
             if available_only and not m.get("available", False):
                 continue
@@ -102,6 +111,7 @@ def _build_manifest(*, available_only: bool = True) -> dict[str, dict]:
                 "voices": m.get("voices", {}),
                 "languages": m.get("languages", []),
                 "install": m.get("install"),
+                "size": m.get("size", ""),
             }
     return manifest
 
@@ -118,49 +128,13 @@ OPENAI_MODEL_ALIASES: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-class TTSRequest(BaseModel):
-    text: str
-    model: str
-
-    speaker_name: str | None = None
-    voice_description: str | None = None
-    sample_voice_file: str | None = None
-
-    speed: str = "normal"
-    temperature: float = 0.0
-    seed: int | None = None
-    add_pauses: bool = True
-
-    @field_validator("text")
-    @classmethod
-    def text_not_empty(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("'text' must not be empty")
-        return v
-
-    @field_validator("speed")
-    @classmethod
-    def speed_must_be_valid(cls, v: str) -> str:
-        v = v.lower()
-        if v not in SPEED_MAP:
-            raise ValueError(f"'speed' must be one of: {list(SPEED_MAP)}")
-        return v
-
-    @field_validator("temperature")
-    @classmethod
-    def temperature_non_negative(cls, v: float) -> float:
-        if v < 0:
-            raise ValueError("'temperature' must be >= 0")
-        return v
-
-
 class OpenAIRequest(BaseModel):
     model: str
     input: str
     voice: str | None = None
     response_format: str = "mp3"
     speed: float = 1.0
+    add_pauses: bool = True
 
     @field_validator("input")
     @classmethod
@@ -191,13 +165,24 @@ class OpenAIRequest(BaseModel):
 
 
 def _find_engine(model: str):
-    for engine in ENGINES:
+    for engine in TTS_ENGINES:
         if engine.claims(model):
             return engine
-    known = sorted(m["model"] for e in ENGINES for m in e.list_models())
+    known = sorted(m["model"] for e in TTS_ENGINES for m in e.list_models())
     raise HTTPException(
         status_code=422,
         detail=f"Unknown model '{model}'. Known models: {known}",
+    )
+
+
+def _find_stt_engine(model: str):
+    for engine in STT_ENGINES:
+        if engine.claims(model):
+            return engine
+    known = sorted(m["model"] for e in STT_ENGINES for m in e.list_models())
+    raise HTTPException(
+        status_code=422,
+        detail=f"Unknown STT model '{model}'. Known: {known}",
     )
 
 
@@ -226,9 +211,9 @@ def _openai_to_internal(req: OpenAIRequest, manifest: dict) -> dict:
         "text": req.input,
         "speed": speed_key,
         "speed_value": req.speed,
-        "temperature": 0.0,
+        "temperature": 0.7,
         "seed": None,
-        "add_pauses": True,
+        "add_pauses": req.add_pauses,
         "speaker_name": None,
         "voice_description": None,
         "sample_voice_file": None,
@@ -257,79 +242,6 @@ def _openai_to_internal(req: OpenAIRequest, manifest: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-@app.post(
-    "/tts",
-    summary="Generate speech",
-    response_description="MP3 audio file",
-    tags=["text-to-speech"],
-)
-async def tts(req: TTSRequest):
-    engine = _find_engine(req.model)
-
-    effective_seed = req.seed if req.seed is not None else int(time.time() * 1000) & 0xFFFFFFFF
-    request_dict = {
-        **req.model_dump(),
-        "speed_value": SPEED_MAP[req.speed],
-        "effective_seed": effective_seed,
-    }
-
-    engine.validate(request_dict)
-
-    tmp_dir = os.path.join(tempfile.gettempdir(), f"tts_{uuid.uuid4().hex}")
-    os.makedirs(tmp_dir, exist_ok=True)
-
-    try:
-        wav_path = await asyncio.to_thread(engine.generate, request_dict, tmp_dir)
-        trim_silence(wav_path)
-
-        mp3_filename = f"{uuid.uuid4().hex}.mp3"
-        mp3_path = os.path.join(OUTPUTS_DIR, mp3_filename)
-        if not wav_to_mp3(wav_path, mp3_path):
-            raise HTTPException(
-                status_code=500,
-                detail="WAV-to-MP3 conversion failed — is ffmpeg installed?",
-            )
-        params = {"model": req.model, "input": req.text, "speed": req.speed, "seed": effective_seed}
-        try:
-            with open(mp3_path + ".json", "w") as fh:
-                json.dump(params, fh)
-        except OSError:
-            pass
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[server] Error in /tts ({req.model}): {e}")
-        raise HTTPException(status_code=500, detail=f"Generation failed: {e}")
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    return FileResponse(
-        path=mp3_path,
-        media_type="audio/mpeg",
-        filename="speech.mp3",
-        headers={"X-Seed": str(effective_seed)},
-    )
-
-
-@app.get("/models", summary="List available models", tags=["models-and-voices"])
-def list_models():
-    result = []
-    for engine in ENGINES:
-        result.extend(engine.list_models())
-    return JSONResponse(content=result)
-
-
-@app.get("/voices", summary="List all voices grouped by engine", tags=["models-and-voices"])
-def list_voices():
-    result = {}
-    for engine in ENGINES:
-        name = engine.engine_name
-        voices = engine.list_voices()
-        if voices:
-            result[name] = voices
-    return JSONResponse(content=result)
-
-
 @app.delete("/outputs", summary="Delete all generated audio files", tags=["output-management"])
 def delete_outputs():
     deleted = []
@@ -351,6 +263,7 @@ def delete_outputs():
     response: dict = {"deleted": len(deleted), "files": deleted}
     if errors:
         response["errors"] = errors
+    _invalidate_outputs_cache()
     return JSONResponse(content=response)
 
 
@@ -426,6 +339,118 @@ async def upload_voice(file: UploadFile = File(...), name: str | None = Form(Non
     }
 
 
+STAGE_DIR = os.path.join(VOICES_DIR, ".staging")
+
+
+@app.post("/voice/stage", summary="Upload a voice file to staging (preview before save)", tags=["voice-management"])
+async def stage_voice(file: UploadFile = File(...), name: str | None = Form(None)):
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=422, detail=f"File exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)} MB limit"
+        )
+
+    stem = name if name else (file.filename or "voice")
+    stem = "".join(c for c in stem.rsplit(".", 1)[0] if c.isalnum() or c in "-_.").rstrip(".") or "voice"
+    safe_name = stem + ".wav"
+    os.makedirs(STAGE_DIR, exist_ok=True)
+    target = os.path.join(STAGE_DIR, safe_name)
+
+    is_wav = len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WAVE"
+    if is_wav:
+        try:
+            with open(target, "wb") as f:
+                f.write(content)
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
+    else:
+        fd, tmp_path = tempfile.mkstemp(suffix=os.path.splitext(file.filename or ".dat")[1])
+        os.close(fd)
+        try:
+            with open(tmp_path, "wb") as f:
+                f.write(content)
+            if not convert_to_wav_24k(tmp_path, target):
+                if os.path.exists(target):
+                    os.unlink(target)
+                raise HTTPException(
+                    status_code=422,
+                    detail="Could not convert file to WAV — is it a valid audio file? ffmpeg must be installed.",
+                )
+        finally:
+            os.unlink(tmp_path)
+
+    duration = get_audio_duration(target)
+    size = os.path.getsize(target)
+    created_at = os.path.getmtime(target)
+    url = f"/voice/stage/{safe_name}"
+
+    return {
+        "name": safe_name,
+        "duration": round(duration, 1),
+        "size": size,
+        "created_at": created_at,
+        "url": url,
+    }
+
+
+@app.get("/voice/stage/{name:path}", summary="Get a staged voice file", tags=["voice-management"])
+def get_stage_voice(name: str):
+    safe = name if name.endswith(".wav") else name + ".wav"
+    path = os.path.join(STAGE_DIR, safe)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"Staged voice '{name}' not found")
+    real = os.path.realpath(path)
+    if not real.startswith(os.path.realpath(STAGE_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    return FileResponse(path, media_type="audio/wav")
+
+
+@app.delete("/voice/stage/{name:path}", summary="Delete a staged voice file", tags=["voice-management"])
+def delete_stage_voice(name: str):
+    safe = name if name.endswith(".wav") else name + ".wav"
+    path = os.path.join(STAGE_DIR, safe)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"Staged voice '{name}' not found")
+    real = os.path.realpath(path)
+    if not real.startswith(os.path.realpath(STAGE_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    os.remove(path)
+    return {"deleted": safe}
+
+
+@app.post("/voice/stage/{name:path}/save", summary="Save a staged voice permanently", tags=["voice-management"])
+def save_stage_voice(name: str):
+    safe = name if name.endswith(".wav") else name + ".wav"
+    stage_path = os.path.join(STAGE_DIR, safe)
+    if not os.path.exists(stage_path):
+        raise HTTPException(status_code=404, detail=f"Staged voice '{name}' not found")
+    real = os.path.realpath(stage_path)
+    if not real.startswith(os.path.realpath(STAGE_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    target = os.path.join(VOICES_DIR, safe)
+    if os.path.exists(target):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Voice '{safe}' already exists. Use DELETE /voice/{safe} first to replace it.",
+        )
+
+    shutil.move(stage_path, target)
+
+    duration = get_audio_duration(target)
+    size = os.path.getsize(target)
+    created_at = os.path.getmtime(target)
+    url = f"/voice/{safe}"
+
+    return {
+        "name": safe,
+        "duration": round(duration, 1),
+        "size": size,
+        "created_at": created_at,
+        "url": url,
+    }
+
+
 @app.get("/voice/{name:path}", summary="Get a voice file", tags=["voice-management"])
 def get_voice(name: str):
     path = resolve_voice(name)
@@ -476,30 +501,6 @@ def delete_voice(name: str):
     return {"deleted": name}
 
 
-@app.get(
-    "/voices/detail", summary="List all cloneable voices with metadata", tags=["models-and-voices"]
-)
-def list_voices_detail():
-    files = scan_wav_voices(VOICES_DIR)
-    result = []
-    for f in files:
-        path = os.path.join(VOICES_DIR, f)
-        size = os.path.getsize(path)
-        duration = get_audio_duration(path)
-        created_at = os.path.getmtime(path)
-        result.append(
-            {
-                "name": f,
-                "size": size,
-                "duration": round(duration, 1),
-                "created_at": created_at,
-                "url": f"/voice/{f}",
-            }
-        )
-    result.sort(key=lambda e: e["created_at"], reverse=True)
-    return JSONResponse(content=result)
-
-
 # ---------------------------------------------------------------------------
 # Routes — output management
 # ---------------------------------------------------------------------------
@@ -511,7 +512,13 @@ AUDIO_EXTS = {".mp3", ".wav", ".pcm"}
     "/outputs/detail", summary="List generated outputs with metadata", tags=["output-management"]
 )
 def list_outputs_detail():
+    now = time.time()
+    if now - _outputs_cache["ts"] < OUTPUTS_CACHE_TTL and _outputs_cache["data"] is not None:
+        return JSONResponse(content=_outputs_cache["data"])
+
     if not os.path.exists(OUTPUTS_DIR):
+        _outputs_cache["ts"] = now
+        _outputs_cache["data"] = []
         return JSONResponse(content=[])
 
     entries = []
@@ -530,15 +537,19 @@ def list_outputs_detail():
         created_at = os.path.getmtime(fpath)
 
         params = {}
+        duration = 0.0
         json_path = fpath + ".json"
         if os.path.exists(json_path):
             try:
                 with open(json_path) as fh:
                     params = json.load(fh)
+                duration = params.pop("_duration", 0.0)
             except (json.JSONDecodeError, OSError):
                 pass
 
-        duration = get_audio_duration(fpath) if ext in (".wav", ".mp3") else 0.0
+        if not duration and ext in (".wav", ".mp3"):
+            duration = get_audio_duration(fpath)
+
         entries.append(
             {
                 "name": fname,
@@ -551,6 +562,8 @@ def list_outputs_detail():
         )
 
     entries.sort(key=lambda e: e["created_at"], reverse=True)
+    _outputs_cache["ts"] = now
+    _outputs_cache["data"] = entries
     return JSONResponse(content=entries)
 
 
@@ -586,7 +599,113 @@ def delete_output(filename: str):
     json_path = real + ".json"
     if os.path.exists(json_path):
         os.remove(json_path)
+    _invalidate_outputs_cache()
     return {"deleted": filename}
+
+
+# ---------------------------------------------------------------------------
+# Routes — speech-to-text
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/v1/stt/models",
+    summary="List available STT models",
+    tags=["speech-to-text"],
+)
+def list_stt_models():
+    models = []
+    for engine in STT_ENGINES:
+        models.extend(engine.list_models())
+    return JSONResponse(content={"object": "list", "data": models})
+
+
+@app.post(
+    "/v1/audio/transcriptions",
+    summary="Transcribe audio (OpenAI-compatible)",
+    tags=["speech-to-text"],
+)
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    model: str = Form(...),
+    language: str | None = Form(None),
+    temperature: float = Form(0.0),
+    response_format: str = Form("json"),
+    request: Request = None,
+):
+    stt_engine = _find_stt_engine(model)
+    stt_engine.validate({"model": model, "language": language, "temperature": temperature})
+
+    fd, tmp_path = tempfile.mkstemp(suffix=os.path.splitext(file.filename or ".wav")[1])
+    os.close(fd)
+    try:
+        content = await file.read()
+        with open(tmp_path, "wb") as f:
+            f.write(content)
+
+        result = await asyncio.to_thread(
+            stt_engine.transcribe, tmp_path, model, language, temperature
+        )
+
+        save_output = (
+            request.headers.get("x-save-output", "false").lower() == "true" if request else False
+        )
+        if save_output:
+            output_id = uuid.uuid4().hex
+            json_path = os.path.join(OUTPUTS_DIR, f"{output_id}.json")
+            os.makedirs(os.path.dirname(json_path), exist_ok=True)
+            try:
+                with open(json_path, "w") as fh:
+                    json.dump(result, fh)
+            except OSError:
+                pass
+
+        if response_format == "text":
+            return PlainTextResponse(content=result["text"])
+        elif response_format == "verbose_json":
+            return JSONResponse(content=result)
+        else:
+            return JSONResponse(content={"text": result["text"]})
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Routes — output metadata (E2E results)
+# ---------------------------------------------------------------------------
+
+
+@app.put(
+    "/output/{filename:path}/meta",
+    summary="Update output metadata (e.g. E2E validation results)",
+    tags=["output-management"],
+)
+def update_output_meta(filename: str, body: dict = Body(...)):
+    fpath = os.path.join(OUTPUTS_DIR, filename)
+    real = os.path.realpath(fpath)
+    if not real.startswith(os.path.realpath(OUTPUTS_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
+    json_path = real + ".json"
+    existing = {}
+    if os.path.exists(json_path):
+        try:
+            with open(json_path) as fh:
+                existing = json.load(fh)
+            existing.update(body)
+        except (json.JSONDecodeError, OSError):
+            existing = body
+    else:
+        existing = body
+    try:
+        with open(json_path, "w") as fh:
+            json.dump(existing, fh)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to write metadata: {e}")
+    _invalidate_outputs_cache()
+    return {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------
@@ -598,7 +717,7 @@ def delete_output(filename: str):
     "/v1/models", summary="List available models (OpenAI-compatible)", tags=["models-and-voices"]
 )
 def list_v1_models(extras: bool = False):
-    manifest = _build_manifest()
+    manifest = _build_manifest(available_only=not extras)
     now = int(time.time())
 
     data = []
@@ -622,21 +741,109 @@ def list_v1_models(extras: bool = False):
                     "voices": entry.get("voices", {}),
                     "languages": entry.get("languages", []),
                     "install": entry.get("install"),
+                    "size": entry.get("size", ""),
                 }
             )
         data.append(base)
 
-    for alias in OPENAI_MODEL_ALIASES:
-        if alias not in manifest:
-            data.append(
-                {
-                    "id": alias,
-                    "object": "model",
-                    "created": now,
-                    "owned_by": "openai",
-                }
-            )
+    for alias, real_model in OPENAI_MODEL_ALIASES.items():
+        if real_model not in manifest:
+            base = {
+                "id": alias,
+                "object": "model",
+                "created": now,
+                "owned_by": "openai",
+            }
+            if extras:
+                base.update(
+                    {
+                        "name": alias,
+                        "available": False,
+                        "capabilities": [],
+                    }
+                )
+            data.append(base)
 
+    return JSONResponse(content={"object": "list", "data": data})
+
+
+@app.get(
+    "/v1/models/{model_id:path}",
+    summary="Get model details (OpenAI-compatible)",
+    tags=["models-and-voices"],
+)
+def get_v1_model(model_id: str, extras: bool = False):
+    manifest = _build_manifest()
+    entry = manifest.get(model_id)
+    if not entry:
+        known = sorted(manifest)
+        raise HTTPException(
+            status_code=404,
+            detail=f"Model '{model_id}' not found. Known: {known}",
+        )
+    now = int(time.time())
+    result = {
+        "id": model_id,
+        "object": "model",
+        "created": now,
+        "owned_by": entry["engine"],
+    }
+    if extras:
+        result.update(
+            {
+                "name": entry.get("name", model_id),
+                "engine": entry["engine"],
+                "model": entry["model"],
+                "mode": entry.get("mode", "speaker"),
+                "capabilities": entry.get("capabilities", []),
+                "description": entry.get("description", ""),
+                "available": entry.get("available", False),
+                "voices": entry.get("voices", {}),
+                "languages": entry.get("languages", []),
+                "install": entry.get("install"),
+                "size": entry.get("size", ""),
+            }
+        )
+    return JSONResponse(content=result)
+
+
+@app.get(
+    "/v1/voices",
+    summary="List all voices (OpenAI-compatible)",
+    tags=["models-and-voices"],
+)
+def list_v1_voices():
+    data = []
+    seen_cloneable = set()
+    for engine in TTS_ENGINES:
+        engine_name = engine.engine_name
+        raw = engine.list_voices()
+        for key, items in raw.items():
+            if not isinstance(items, list):
+                continue
+            if key in ("built_in", "cloneable"):
+                category = key
+                language = None
+            else:
+                category = "built_in"
+                language = key
+            for item in items:
+                if category == "cloneable":
+                    if item in seen_cloneable:
+                        continue
+                    seen_cloneable.add(item)
+                entry = {"id": item, "engine": engine_name, "category": category}
+                if language:
+                    entry["language"] = language
+                if category == "cloneable":
+                    path = os.path.join(VOICES_DIR, item)
+                    if os.path.exists(path):
+                        entry["size"] = os.path.getsize(path)
+                        entry["duration"] = round(get_audio_duration(path), 1)
+                        entry["created_at"] = os.path.getmtime(path)
+                        entry["url"] = f"/voice/{item}"
+                data.append(entry)
+    data.sort(key=lambda e: (0 if e["category"] == "built_in" else 1, e["engine"], e["id"]))
     return JSONResponse(content={"object": "list", "data": data})
 
 
@@ -677,7 +884,9 @@ async def openai_speech(req: OpenAIRequest, request: Request):
 
     try:
         wav_path = await asyncio.to_thread(engine.generate, request_dict, tmp_dir)
+        normalize_loudness(wav_path)
         trim_silence(wav_path)
+        duration = get_audio_duration(wav_path)
 
         save_output = request.headers.get("x-save-output", "false").lower() == "true"
 
@@ -718,12 +927,18 @@ async def openai_speech(req: OpenAIRequest, request: Request):
                 "voice": req.voice,
                 "speed": req.speed,
                 "seed": effective_seed,
+                "_duration": round(duration, 1),
             }
+            batch_id = request.headers.get("x-batch-id")
+            if batch_id:
+                params["batch_id"] = batch_id
+                params["batch_seq"] = int(request.headers.get("x-batch-seq", 0))
             try:
                 with open(output_path + ".json", "w") as fh:
                     json.dump(params, fh)
             except OSError:
                 pass
+            _invalidate_outputs_cache()
         else:
             if req.response_format == "wav":
                 output_path = wav_path
@@ -763,7 +978,7 @@ async def openai_speech(req: OpenAIRequest, request: Request):
             path=output_path,
             media_type=content_type,
             filename=filename,
-            headers={"X-Seed": str(effective_seed)},
+            headers={"X-Seed": str(effective_seed), "X-Audio-Duration": str(duration)},
         )
     else:
         return Response(
@@ -771,6 +986,7 @@ async def openai_speech(req: OpenAIRequest, request: Request):
             media_type=response_content_type,
             headers={
                 "X-Seed": str(effective_seed),
+                "X-Audio-Duration": str(duration),
                 "Content-Disposition": f'inline; filename="{response_filename}"',
             },
         )

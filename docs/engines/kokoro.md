@@ -33,13 +33,13 @@ Use `"kokoro-v1.0"` as the `model` value in all requests.
 ## Try it
 
 ```bash
-curl -X POST http://localhost:8000/tts \
+curl -X POST http://localhost:8000/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "Hello! This is Kokoro running locally.",
-    "model": "kokoro-v1.0",
-    "speaker_name": "af_heart",
-    "speed": "normal"
+    "model": "kokoro",
+    "input": "Hello! This is Kokoro running locally.",
+    "voice": "af_heart",
+    "speed": 1.0
   }' \
   --output speech.mp3
 ```
@@ -62,7 +62,7 @@ Voice IDs start with a two-letter prefix that tells you the language and gender:
 | `if_` / `im_` | Italian | `if_sara`, `im_nicola` |
 | `pf_` / `pm_` | Brazilian Portuguese | `pf_dora`, `pm_alex` |
 
-See the full list at `GET /voices`.
+See the full list at `GET /v1/voices`.
 
 ### All voices
 
@@ -90,9 +90,11 @@ See the full list at `GET /voices`.
 
 | Value | Multiplier |
 |---|---|
-| `"slow"` | 0.8× |
-| `"normal"` | 1.0× |
-| `"fast"` | 1.3× |
+| `0.8` | 0.8× |
+| `1.0` | 1.0× |
+| `1.3` | 1.3× |
+
+Range: `0.25` – `4.0`
 
 ---
 
@@ -109,5 +111,5 @@ See the full list at `GET /voices`.
 | Problem | Fix |
 |---|---|
 | Model files not found | Download both `.onnx` and `.bin` to `models/kokoro/` |
-| Unknown voice | Check `GET /voices` for valid names |
+| Unknown voice | Check `GET /v1/voices` for valid names |
 | Audio sounds robotic | Try `af_heart` — it's a blend of bella + sarah, best quality |

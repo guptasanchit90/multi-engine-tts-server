@@ -188,6 +188,7 @@ class KokoroEngine(BaseEngine):
                 "mode": "speaker",
                 "capabilities": ["speaker", "voice_blend"],
                 "description": "Fast ONNX-based TTS with 9 languages and voice blending",
+                "size": "480 MB",
                 "available": _model_available(),
                 "voices": {"built_in": sorted(_ALL_VOICES), "cloneable": []},
                 "languages": sorted(set(_LANG_MAP.values())),

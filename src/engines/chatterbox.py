@@ -35,13 +35,112 @@ from src.utils import (
 from .base import BaseEngine, register
 
 MODELS_DIR = os.path.join(os.getcwd(), "models", "chatterbox")
-MIN_REF_DURATION = 5.0
+S3_TOKENIZER_DIR = os.path.join(MODELS_DIR, "s3_tokenizer")
+_MIN_REF_DURATION = 5.0
+
+
+def _patch_s3_tokenizer_hf():
+    if not os.path.isdir(S3_TOKENIZER_DIR):
+        return False
+    try:
+        import huggingface_hub
+
+        _orig_snapshot = huggingface_hub.snapshot_download
+        _orig_hf_download = huggingface_hub.hf_hub_download
+
+        def _patched_snapshot(repo_id, **kw):
+            if repo_id == "mlx-community/S3TokenizerV2":
+                return S3_TOKENIZER_DIR
+            return _orig_snapshot(repo_id, **kw)
+
+        def _patched_hf_download(repo_id, filename=None, **kw):
+            if repo_id == "mlx-community/S3TokenizerV2":
+                if filename:
+                    p = os.path.join(S3_TOKENIZER_DIR, filename)
+                    if os.path.exists(p):
+                        return p
+                return os.path.join(S3_TOKENIZER_DIR, "model.safetensors")
+            return _orig_hf_download(repo_id, filename=filename, **kw)
+
+        huggingface_hub.snapshot_download = _patched_snapshot
+        huggingface_hub.hf_hub_download = _patched_hf_download
+        return True
+    except ImportError:
+        return False
+
 
 _MODELS: dict[str, str] = {
     "chatterbox-turbo-fp16": "Chatterbox-Turbo-TTS-fp16",
+    "chatterbox-turbo-4bit": "Chatterbox-Turbo-TTS-4bit",
+    "chatterbox-fp16": "Chatterbox-TTS-fp16",
+    "chatterbox-8bit": "Chatterbox-TTS-8bit",
+}
+
+_TURBO_MODELS = {"chatterbox-turbo-fp16", "chatterbox-turbo-4bit"}
+
+_MULTILINGUAL_LANGUAGES = [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "it",
+    "pt",
+    "pl",
+    "tr",
+    "ru",
+    "nl",
+    "cs",
+    "ar",
+    "zh",
+    "ja",
+    "hu",
+    "ko",
+]
+
+_MODEL_META: dict[str, dict] = {
+    "chatterbox-turbo-fp16": {
+        "id": "chatterbox-turbo",
+        "name": "Chatterbox Turbo",
+        "description": "High-quality English voice cloning",
+        "capabilities": ["voice_clone"],
+        "languages": ["en"],
+        "size": "1.2 GB",
+    },
+    "chatterbox-turbo-4bit": {
+        "id": "chatterbox-turbo-4bit",
+        "name": "Chatterbox Turbo (4-bit)",
+        "description": "Lightweight English voice cloning",
+        "capabilities": ["voice_clone"],
+        "languages": ["en"],
+        "size": "812 MB",
+    },
+    "chatterbox-fp16": {
+        "id": "chatterbox",
+        "name": "Chatterbox",
+        "description": "Multilingual voice cloning with emotion control",
+        "capabilities": ["voice_clone", "emotion"],
+        "languages": _MULTILINGUAL_LANGUAGES,
+        "size": "2.7 GB",
+    },
+    "chatterbox-8bit": {
+        "id": "chatterbox-8bit",
+        "name": "Chatterbox (8-bit)",
+        "description": "Lightweight multilingual voice cloning",
+        "capabilities": ["voice_clone", "emotion"],
+        "languages": _MULTILINGUAL_LANGUAGES,
+        "size": "1.28 GB",
+    },
 }
 
 _model_cache = ModelCache(ttl=10, tag="chatterbox")
+
+
+def _is_turbo(model_name: str) -> bool:
+    return model_name in _TURBO_MODELS
+
+
+def _hf_repo(folder: str) -> str:
+    return f"mlx-community/{folder}"
 
 
 @register
@@ -54,26 +153,35 @@ class ChatterboxEngine(BaseEngine):
         return model in _MODELS
 
     def list_models(self) -> list[dict]:
-        folder = _MODELS.get("chatterbox-turbo-fp16", "")
+        cloneable = scan_wav_voices(VOICES_DIR)
+        voices = {"cloneable": cloneable} if cloneable else {}
         return [
             {
-                "id": "chatterbox",
-                "name": "Chatterbox Turbo",
+                "id": _MODEL_META[model_key]["id"],
+                "name": _MODEL_META[model_key]["name"],
                 "engine": "chatterbox",
-                "model": "chatterbox-turbo-fp16",
+                "model": model_key,
                 "mode": "clone",
-                "capabilities": ["voice_clone"],
-                "description": "High-quality voice cloning via MLX (5s+ reference recommended)",
+                "capabilities": _MODEL_META[model_key]["capabilities"],
+                "description": _MODEL_META[model_key]["description"],
+                "size": _MODEL_META[model_key].get("size", ""),
                 "available": _model_path(MODELS_DIR, folder) is not None,
-                "voices": {"built_in": [], "cloneable": scan_wav_voices(VOICES_DIR)},
-                "languages": ["en"],
+                "voices": voices,
+                "languages": _MODEL_META[model_key]["languages"],
                 "install": {
                     "source": "huggingface",
                     "commands": [
-                        "huggingface-cli download mlx-community/Chatterbox-Turbo-TTS-fp16 --local-dir models/chatterbox/Chatterbox-Turbo-TTS-fp16",
+                        f"hf download {_hf_repo(folder)} --local-dir models/chatterbox/{folder}",
+                    ],
+                },
+                "install_s3_tokenizer": {
+                    "message": "S3Tokenizer required (auto-downloaded if missing):",
+                    "commands": [
+                        "hf download mlx-community/S3TokenizerV2 --local-dir models/chatterbox/s3_tokenizer",
                     ],
                 },
             }
+            for model_key, folder in _MODELS.items()
         ]
 
     def list_voices(self) -> dict:
@@ -98,17 +206,20 @@ class ChatterboxEngine(BaseEngine):
                 ),
             )
         duration = get_audio_duration(resolved)
-        if duration < MIN_REF_DURATION:
+        if duration < _MIN_REF_DURATION:
             raise HTTPException(
                 status_code=422,
-                detail=f"Reference audio must be at least {MIN_REF_DURATION:.0f}s (got {duration:.1f}s)",
+                detail=f"Reference audio must be at least {_MIN_REF_DURATION:.0f}s (got {duration:.1f}s)",
             )
 
     def generate(self, request: dict, tmp_dir: str) -> str:
         if not _MLX_AVAILABLE:
             raise HTTPException(
                 status_code=422,
-                detail="Chatterbox Turbo requires MLX (Apple Silicon only). Use the Kokoro or Piper engine instead.",
+                detail=(
+                    "Chatterbox engines require MLX (Apple Silicon only). "
+                    "Use the Kokoro or Piper engine instead."
+                ),
             )
 
         model_name = request["model"]
@@ -121,17 +232,19 @@ class ChatterboxEngine(BaseEngine):
 
         resolved_path = _model_path(MODELS_DIR, folder)
         if not resolved_path:
+            repo = _hf_repo(folder)
             raise HTTPException(
                 status_code=422,
                 detail=(
                     f"Model folder '{folder}' not found in {MODELS_DIR}. "
-                    "Run: hf download mlx-community/Chatterbox-Turbo-TTS-fp16 --local-dir models/chatterbox/Chatterbox-Turbo-TTS-fp16"
+                    f"Run: hf download {repo} --local-dir models/chatterbox/{folder}"
                 ),
             )
 
         mx.random.seed(request["effective_seed"])
 
         try:
+            _patch_s3_tokenizer_hf()
             model = _model_cache.get_or_load(model_name, lambda: load_model(Path(resolved_path)))
         except HTTPException:
             raise
@@ -147,17 +260,33 @@ class ChatterboxEngine(BaseEngine):
         if voice_file:
             ref_audio = resolve_voice(voice_file)
 
+        is_turbo = _is_turbo(model_name)
+
         try:
+            kwargs: dict = {
+                "text": text,
+                "ref_audio": ref_audio,
+                "temperature": temperature,
+                "repetition_penalty": 1.2,
+            }
+
+            word_count = len(text.split())
+            max_tokens_est = max(400, min(int(word_count * 25), 4096))
+
+            if is_turbo:
+                kwargs["top_p"] = 0.95
+                kwargs["max_tokens"] = max_tokens_est
+                kwargs["norm_loudness"] = True
+            else:
+                kwargs["top_p"] = 0.95
+                kwargs["max_new_tokens"] = max_tokens_est
+                kwargs["exaggeration"] = request.get("exaggeration", 0.1)
+                kwargs["cfg_weight"] = request.get("cfg_weight", 0.0)
+                kwargs["min_p"] = 0.05
+                kwargs["lang_code"] = request.get("lang_code", "en")
+
             audio_chunks = []
-            for result in model.generate(
-                text=text,
-                ref_audio=ref_audio,
-                temperature=temperature,
-                top_p=0.95,
-                repetition_penalty=1.2,
-                max_tokens=800,
-                norm_loudness=True,
-            ):
+            for result in model.generate(**kwargs):
                 audio_chunks.append(np.array(result.audio))
 
             if not audio_chunks:

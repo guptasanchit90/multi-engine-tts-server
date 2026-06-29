@@ -31,7 +31,7 @@
 | `http://localhost:8000/api-docs` | Interactive Swagger UI — try every endpoint |
 | `http://localhost:8000/` | Web UI — the friendly form |
 | `GET /health` | Is it alive? Yes/no |
-| `GET /models` | What's installed? |
-| `GET /voices` | Who can speak? |
-| `POST /tts` | Make some noise |
+| `GET /v1/voices` | Who can speak? |
+| `GET /v1/models` | What's installed? |
+| `GET /v1/models/{id}` | Model details |
 | `POST /v1/audio/speech` | OpenAI-compatible — drop-in replacement |
