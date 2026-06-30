@@ -18,12 +18,21 @@ Pick what you need, download it, drop it in `models/qwen/`.
 | `Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit` | Voice design | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit) |
 | `Qwen3-TTS-12Hz-1.7B-Base-8bit` | Voice cloning | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit) |
 
+### Pro (1.7B) — Additional options
+
+| Model folder | Mode | Size | Alias |
+|---|---|---|---|
+| `Qwen3-TTS-12Hz-1.7B-Base-4bit` | Voice cloning | ~1.6 GB | `qwen-clone` |
+
+Quantized clone model — lower RAM, slightly lower quality.
+
 ### Lite (0.6B) — Faster, ~3 GB RAM
 
-| Model folder | Mode | Download |
+| Model folder | Mode | Alias |
 |---|---|---|
-| `Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` | Custom voice | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit) |
-| `Qwen3-TTS-12Hz-0.6B-Base-8bit` | Voice cloning | [HuggingFace](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit) |
+| `Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` | Custom voice | `qwen-lite` |
+| `Qwen3-TTS-12Hz-0.6B-VoiceDesign-8bit` | Voice design | `qwen-lite-voice` |
+| `Qwen3-TTS-12Hz-0.6B-Base-8bit` | Voice cloning | `qwen-lite-clone` |
 
 Download via HF Hub:
 
@@ -41,7 +50,11 @@ models/
 └── qwen/
     ├── Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit/
     ├── Qwen3-TTS-12Hz-1.7B-VoiceDesign-8bit/
-    └── Qwen3-TTS-12Hz-1.7B-Base-8bit/
+    ├── Qwen3-TTS-12Hz-1.7B-Base-8bit/
+    ├── Qwen3-TTS-12Hz-1.7B-Base-4bit/
+    ├── Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit/
+    ├── Qwen3-TTS-12Hz-0.6B-VoiceDesign-8bit/
+    └── Qwen3-TTS-12Hz-0.6B-Base-8bit/
 ```
 
 ---
@@ -134,6 +147,8 @@ voices/
 ├── my_voice.wav
 └── my_voice.txt   ← transcript of what's in the WAV
 ```
+
+**Performance:** Speaker embeddings are cached to disk as `.npy` files alongside WAVs. The first clone of a voice is slower; subsequent requests reuse the cached embedding.
 
 ---
 

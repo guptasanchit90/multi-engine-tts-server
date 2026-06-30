@@ -36,14 +36,14 @@ Download models for at least one engine (see `docs/engines/`) and you're off.
 
 ## How it's built
 
-A FastAPI server that wraps multiple TTS engines behind a single HTTP API. Engines live in `src/engines/` and sign the `TTSEngine` protocol (`src/engines/base.py`).
+A FastAPI server that wraps multiple TTS and STT engines behind a single HTTP API. TTS engines live in `src/engines/` and sign the `TTSEngine` protocol (`src/engines/base.py`). STT engines live in `src/stt/` and sign the `STTEngine` protocol (`src/stt/base.py`).
 
 ```
 server.py              # FastAPI app — routing, entry point
 src/
   utils.py             # Helpers everyone shares (voice resolution, ffmpeg, memory)
   cache.py             # ModelCache[T] — TTL eviction for MLX engines
-  audio.py             # Trim silence, convert to MP3
+  audio.py             # Loudness normalization, silence trim, format conversion
   engines/
     base.py            # TTSEngine protocol + @register decorator + BaseEngine mixin
     qwen.py            # Qwen3 via mlx-audio (Apple Silicon)
@@ -51,9 +51,13 @@ src/
     kokoro.py          # Kokoro-82M via kokoro-onnx (ONNX)
     piper.py           # Piper via piper-tts (ONNX)
     __init__.py        # Imports everything so @register fires
+  stt/
+    base.py            # STTEngine protocol + @register decorator + BaseSTTEngine mixin
+    whisper_mlx.py     # Whisper via mlx-whisper (Apple Silicon)
+    __init__.py        # Imports everything so @register fires
 static/
-  index.html           # Web UI — pick your voice, click go
-  app.js               # Web UI logic — form, playback, everything
+  index.html           # Web UI — Vue 3 (CDN), no build step
+  app.js               # Web UI logic — components, store, app
 models/                # Downloaded models (gitignored)
 voices/                # Your WAV samples for cloning (gitignored)
 outputs/               # Generated audio lands here (gitignored)
@@ -134,7 +138,73 @@ class MyEngine(BaseEngine):
         return wav_path
 ```
 
-### The five methods you must implement
+### STT Engine
+
+Speech-to-text engines work the same way but live in `src/stt/` and use the `STTEngine` protocol from `src/stt/base.py`.
+
+```python
+# src/stt/myengine.py
+import os
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+
+_AVAILABLE = False
+try:
+    import my_stt_lib
+    _AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    from fastapi import HTTPException
+except ImportError as exc:
+    raise ImportError("fastapi is not installed. Run: pip install fastapi") from exc
+
+from src.cache import ModelCache
+from .base import BaseSTTEngine, register
+
+
+@register
+class MySTTEngine(BaseSTTEngine):
+    @property
+    def engine_name(self) -> str:
+        return "my_stt"
+
+    def claims(self, model: str) -> bool:
+        return model == "my-stt-model"
+
+    def list_models(self) -> list[dict]:
+        return [{
+            "id": "my-stt-model",
+            "name": "My STT Model",
+            "engine": self.engine_name,
+            "model": "my-stt-model",
+            "mode": "stt",
+            "capabilities": ["transcribe"],
+            "description": "...",
+            "available": _AVAILABLE,
+            "languages": ["en", "multi"],
+            "size": "~500 MB",
+            "install": {"commands": ["hf download ..."]},
+        }]
+
+    def list_voices(self) -> dict:
+        return {}
+
+    def validate(self, request: dict) -> None:
+        if request["model"] != "my-stt-model":
+            raise HTTPException(status_code=422, detail="Unknown model")
+
+    def transcribe(
+        self, audio_path: str, model: str, language: str | None, temperature: float
+    ) -> dict:
+        # ... transcribe audio ...
+        return {"text": "transcription result", "segments": [], "detected_language": "en"}
+```
+
+### The five methods you must implement (TTS Engine)
 
 | Method | Job |
 |---|---|
@@ -375,6 +445,16 @@ def list_models(self) -> list[dict]:
 
 For catch-all engines (Piper — voice files ARE the models), use `"model": ""`.
 
+New in 0.2.0: Models can include an `"install"` field with download commands, shown in the web UI install modal:
+
+```python
+"install": {
+    "commands": [
+        "hf download org/repo --local-dir models/myengine/model",
+    ],
+}
+```
+
 ### Voice field mapping
 
 | Capability | `voice` param becomes |
@@ -400,13 +480,18 @@ Add an entry to `list_models()`:
 
 ## Output File Conventions
 
-- Generated MP3s → `outputs/server/<uuid>.mp3`
+- Generated audio → `outputs/server/<uuid>.mp3` (or `.wav`, `.pcm`)
+- JSON metadata → `outputs/server/<uuid>.mp3.json` (params, E2E results)
+- STT results → `outputs/server/<uuid>.json` (with `x-save-output: true`)
 - Temp work dirs → `<tempdir>/tts_<uuid>/` (deleted after each request)
 - Clone voices → `voices/*.wav` (gitignored except `.gitkeep`)
+- Speaker embeddings → `voices/*.npy` (cached, gitignored)
+- Staged voices → `voices/.staging/*.wav` (pre-save preview)
 - Piper models → `models/piper/<name>.onnx` + `<name>.onnx.json`
 - Kokoro models → `models/kokoro/kokoro-v1.0.onnx` + `voices-v1.0.bin`
 - Qwen models → `models/qwen/<folder>/` (HF snapshot layout)
-- Chatterbox → HF cache (`mlx-community/Chatterbox-Turbo-TTS-fp16`)
+- Chatterbox → `models/chatterbox/<folder>/`
+- Whisper STT models → `models/whisper/<model_id>/` (HF snapshot layout)
 
 ## Chatterbox Turbo Model Setup
 
@@ -419,17 +504,41 @@ The fp16 variant (~1.2 GB) lives in the HuggingFace cache. S3TokenizerV2 auto-do
 
 ---
 
+## Tool Configuration
+
+Lint and typecheck settings live in `pyproject.toml`:
+
+```toml
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+```
+
+Run with:
+
+```bash
+ruff check server.py src/
+ruff format server.py src/
+pyright server.py src/
+```
+
+---
+
 ## Key Dependencies
 
 | Package | Who uses it | What for |
 |---|---|---|
 | `fastapi`, `uvicorn` | `server.py` | Serving HTTP |
 | `mlx`, `mlx-audio`, `mlx-metal` | `qwen.py`, `chatterbox.py` | Apple Silicon GPU inference |
+| `mlx-whisper` | `whisper_mlx.py` | Apple Silicon Whisper inference |
 | `kokoro-onnx` | `kokoro.py` | Kokoro ONNX |
 | `piper-tts` | `piper.py` | Piper ONNX |
 | `numpy`, `soundfile` | `kokoro.py` | Audio arrays |
-| `transformers`, `tokenizers` | `mlx-audio` (transitive) | Tokenisation |
-| `huggingface_hub` | `mlx-audio` (transitive) | Model downloads |
+| `transformers`, `tokenizers` | `mlx-audio`, `mlx-whisper` (transitive) | Tokenisation |
+| `huggingface_hub` | `mlx-audio`, `mlx-whisper` (transitive) | Model downloads |
 
 Pin direct dependencies with `==` in `requirements.txt`. Transitive deps install automatically — don't pin them unless you need to.
 

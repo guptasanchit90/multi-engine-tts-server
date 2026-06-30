@@ -16,10 +16,17 @@
 | **Kokoro** | ONNX | [54 voices, 9 languages, fast](engines/kokoro.md) |
 | **Piper** | ONNX | [100+ languages, blazing fast, tiny models](engines/piper.md) |
 | **Chatterbox Turbo** | MLX (Apple Silicon) | [Best-in-class voice cloning](engines/chatterbox.md) |
+| **Whisper MLX** | MLX (Apple Silicon) | [Speech-to-text, 5 model sizes](engines/whisper.md) |
+
+## Speech to Text
+
+- [Whisper MLX](engines/whisper.md) — transcribe audio locally via MLX
+- `POST /v1/audio/transcriptions` — OpenAI-compatible STT endpoint
+- `GET /v1/stt/models` — available STT models and download status
 
 ## Development
 
-- [Contributing Guide](../CONTRIBUTING.md) — add a new engine, fix a bug, write better docs
+- [Contributing Guide](../CONTRIBUTING.md) — add a new engine (TTS or STT), fix a bug, write better docs
 - [Development Setup](development.md) — get your environment ready
 
 ---
@@ -34,4 +41,6 @@
 | `GET /v1/voices` | Who can speak? |
 | `GET /v1/models` | What's installed? |
 | `GET /v1/models/{id}` | Model details |
-| `POST /v1/audio/speech` | OpenAI-compatible — drop-in replacement |
+| `POST /v1/audio/speech` | OpenAI-compatible TTS — drop-in replacement |
+| `POST /v1/audio/transcriptions` | OpenAI-compatible STT |
+| `GET /v1/stt/models` | Available STT models |

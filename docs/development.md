@@ -27,13 +27,14 @@ python server.py          # fires up on http://0.0.0.0:8000
 ```
 
 Where to find things:
-- Interactive API docs: `http://localhost:8000/docs`
+- Interactive API docs: `http://localhost:8000/api-docs`
 - Web UI: `http://localhost:8000/`
-- OpenAI-compatible endpoint: `http://localhost:8000/v1/audio/speech`
+- OpenAI-compatible TTS: `http://localhost:8000/v1/audio/speech`
+- OpenAI-compatible STT: `http://localhost:8000/v1/audio/transcriptions`
 
 ## Lint & typecheck
 
-Keep the code clean:
+Tool config lives in `pyproject.toml`:
 
 ```bash
 ruff check server.py src/
@@ -52,6 +53,8 @@ New tests go in `tests/` using `pytest`.
 ## Model download
 
 Each engine needs its own model files. See `docs/engines/` for the download ritual.
+
+Use `GET /v1/models?extras=true` to see all models with download commands in the `install` field — or open the web UI and click the install button on any unavailable model.
 
 ### Docker
 

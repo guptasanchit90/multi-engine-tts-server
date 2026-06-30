@@ -5,6 +5,20 @@ The server lives at `http://0.0.0.0:8000`. Hit it with curl, Python, or whatever
 - Interactive docs (Swagger UI): `http://localhost:8000/api-docs`
 - Web UI: `http://localhost:8000/` — a dark-themed form that lets you play with everything
 
+## GET /health — Is it alive?
+
+```bash
+curl http://localhost:8000/health
+```
+
+```json
+{"status": "ok"}
+```
+
+Yep.
+
+---
+
 ## GET /v1/voices — Who can speak?
 
 Flat, searchable list of every voice from every engine. Add WAV files to `voices/` and they show up instantly — no restart needed.
@@ -31,7 +45,7 @@ Cloneable entries include `size`, `duration`, `created_at`, and `url`.
 
 ## GET /v1/models — OpenAI-style model list
 
-Returns friendly aliases and capabilities for the OpenAI-compatible endpoint.
+Returns friendly aliases and capabilities for installed models.
 
 ```bash
 curl http://localhost:8000/v1/models
@@ -44,7 +58,10 @@ curl http://localhost:8000/v1/models
 ]}
 ```
 
-Add `?extras=true` for full detail (capabilities, voices, languages, install info).
+| Query param | Effect |
+|---|---|
+| `?extras=true` | Full detail (capabilities, voices, languages, install info) |
+| `?extras=true` also shows unavailable models | Use to see what's downloadable |
 
 ---
 
@@ -77,6 +94,7 @@ Drop-in replacement for [OpenAI's TTS endpoint](https://platform.openai.com/docs
 | `voice` | string | `null` | Maps to `speaker_name`, `voice_description`, or `sample_voice_file` |
 | `response_format` | string | `"mp3"` | `mp3` · `wav` · `pcm` |
 | `speed` | number | `1.0` | `0.25` – `4.0` |
+| `add_pauses` | boolean | `true` | Insert short pauses after punctuation (Kokoro, Piper) |
 
 ### How `voice` maps
 
@@ -89,7 +107,8 @@ Drop-in replacement for [OpenAI's TTS endpoint](https://platform.openai.com/docs
 ### Response
 
 - **Win:** audio file with `Content-Type: audio/mpeg` (or `audio/wav`, `audio/L16`)
-- **Header:** `X-Seed: <integer>` — the seed used
+- **Header:** `X-Seed: <integer>` and `X-Audio-Duration: <float>`
+- **Header (save mode):** Send `x-save-output: true` to persist the file to `outputs/server/`
 - **Lose:** JSON `{"detail": "..."}`
 
 ### Example
@@ -107,9 +126,213 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 ---
 
-## DELETE /outputs — Clean up
+## POST /v1/audio/transcriptions — OpenAI-compatible STT
 
-Deletes all generated MP3s from `outputs/server/`. Returns what it nuked.
+Transcribe audio using Whisper MLX. Apple Silicon only.
+
+### Request (multipart form)
+
+| Field | Type | Default | What it does |
+|---|---|---|---|
+| `file` | file | **required** | Audio file (any ffmpeg-readable format) |
+| `model` | string | **required** | STT model ID (e.g. `whisper-base`, `whisper-tiny`) |
+| `language` | string | `null` | Language hint (`en`, `fr`, etc.) |
+| `temperature` | float | `0.0` | Sampling temperature |
+| `response_format` | string | `"json"` | `json` · `text` · `verbose_json` |
+
+### Models
+
+| Model ID | Size |
+|---|---|
+| `whisper-tiny` | ~75 MB |
+| `whisper-base` | ~150 MB |
+| `whisper-small` | ~500 MB |
+| `whisper-medium` | ~1.5 GB |
+| `whisper-large-v3` | ~3 GB |
+
+### Example
+
+```bash
+curl -X POST http://localhost:8000/v1/audio/transcriptions \
+  -F "file=@speech.mp3" \
+  -F "model=whisper-base" \
+  -F "language=en"
+```
+
+```json
+{"text": "Hello world, this was transcribed locally."}
+```
+
+### Header options
+
+| Header | Effect |
+|---|---|
+| `x-save-output: true` | Saves transcription result as a `.json` file in `outputs/server/` |
+
+---
+
+## GET /v1/stt/models — List STT models
+
+Returns available speech-to-text models and their download status.
+
+```bash
+curl http://localhost:8000/v1/stt/models
+```
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "whisper-base",
+      "name": "Whisper Base",
+      "engine": "whisper_mlx",
+      "available": true,
+      "size": "~150 MB",
+      "install": {"commands": ["hf download mlx-community/whisper-base-mlx --local-dir models/whisper/whisper-base"]}
+    }
+  ]
+}
+```
+
+---
+
+## Voice management
+
+### POST /voice — Upload a voice file
+
+Upload a WAV (or any audio format — ffmpeg auto-converts). Voice files are used for cloning (Qwen, Chatterbox).
+
+```bash
+curl -X POST http://localhost:8000/voice \
+  -F "file=@sample.wav" \
+  -F "name=my_voice"
+```
+
+```json
+{
+  "name": "my_voice.wav",
+  "duration": 5.2,
+  "size": 260000,
+  "created_at": 1719000000.0,
+  "url": "/voice/my_voice.wav"
+}
+```
+
+Max upload size: 50 MB. Returns 409 if the file already exists.
+
+### POST /voice/stage — Upload to staging (preview before save)
+
+Staged files live in `voices/.staging/` and can be previewed but won't appear in `/v1/voices` until saved.
+
+```bash
+curl -X POST http://localhost:8000/voice/stage \
+  -F "file=@sample.wav" \
+  -F "name=preview_voice"
+```
+
+### GET /voice/stage/{name} — Get a staged voice
+
+```bash
+curl http://localhost:8000/voice/stage/preview_voice.wav --output preview.wav
+```
+
+### DELETE /voice/stage/{name} — Delete a staged voice
+
+```bash
+curl -X DELETE http://localhost:8000/voice/stage/preview_voice.wav
+```
+
+### POST /voice/stage/{name}/save — Save staged voice permanently
+
+```bash
+curl -X POST http://localhost:8000/voice/stage/preview_voice.wav/save
+```
+
+### GET /voice/{name} — Download a voice file
+
+```bash
+curl http://localhost:8000/voice/my_voice.wav --output my_voice.wav
+```
+
+### PUT /voice/{name} — Rename a voice file
+
+```bash
+curl -X PUT "http://localhost:8000/voice/my_voice.wav?new_name=renamed_voice"
+```
+
+```json
+{"name": "renamed_voice.wav", "url": "/voice/renamed_voice.wav"}
+```
+
+### DELETE /voice/{name} — Delete a voice file
+
+```bash
+curl -X DELETE http://localhost:8000/voice/my_voice.wav
+```
+
+```json
+{"deleted": "my_voice.wav"}
+```
+
+---
+
+## Output management
+
+### GET /outputs/detail — List generated outputs with metadata
+
+```bash
+curl http://localhost:8000/outputs/detail
+```
+
+```json
+[
+  {
+    "name": "abc123.mp3",
+    "size": 48000,
+    "duration": 3.2,
+    "created_at": 1719000000.0,
+    "url": "/output/abc123.mp3",
+    "params": {"model": "kokoro", "input": "Hello", "voice": "af_bella", "seed": 12345}
+  }
+]
+```
+
+The `params` field includes generation parameters and E2E validation results (if uploaded via `PUT /output/{filename}/meta`).
+
+### GET /output/{filename} — Download a generated output
+
+```bash
+curl http://localhost:8000/output/abc123.mp3 --output speech.mp3
+```
+
+### DELETE /output/{filename} — Delete a generated output
+
+```bash
+curl -X DELETE http://localhost:8000/output/abc123.mp3
+```
+
+```json
+{"deleted": "abc123.mp3"}
+```
+
+### PUT /output/{filename}/meta — Update output metadata (E2E results)
+
+Used by the web UI to store transcription and WER scores after E2E validation.
+
+```bash
+curl -X PUT http://localhost:8000/output/abc123.mp3/meta \
+  -H "Content-Type: application/json" \
+  -d '{"transcription": "Hello world", "wer": 0.05, "similarity": 0.92}'
+```
+
+```json
+{"status": "ok"}
+```
+
+### DELETE /outputs — Clean up everything
+
+Deletes all generated audio files from `outputs/server/`.
 
 ```bash
 curl -X DELETE http://localhost:8000/outputs
@@ -118,20 +341,6 @@ curl -X DELETE http://localhost:8000/outputs
 ```json
 {"deleted": 5, "files": ["abc123.mp3", "def456.mp3", ...]}
 ```
-
----
-
-## GET /health — Is it alive?
-
-```bash
-curl http://localhost:8000/health
-```
-
-```json
-{"status": "ok"}
-```
-
-Yep.
 
 ---
 
@@ -146,4 +355,5 @@ All errors come back as JSON:
 | HTTP status | What it means |
 |---|---|
 | `422` | Bad request — unknown model, missing field, bad value |
+| `409` | Conflict — file already exists |
 | `500` | Server oops — model didn't load, ffmpeg not found, generation bombed |

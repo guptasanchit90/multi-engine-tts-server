@@ -1,6 +1,6 @@
 # Sonus — Speak freely
 
-Multi-engine, offline text-to-speech on your Mac. No cloud. No API keys. No one listening.
+Multi-engine, offline text-to-speech (+ speech-to-text) on your Mac. No cloud. No API keys. No one listening.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-blue.svg)](.python-version)
@@ -18,26 +18,28 @@ Runs on [MLX](https://github.com/ml-explore/mlx) and [ONNX Runtime](https://onnx
 
 ## What is this?
 
-Sonus turns text into speech using whatever engine you throw at it. Four engines, one API. Run it locally, hit the endpoint, get audio back. Zero data leaves your machine.
+Sonus turns text into speech (and speech into text) using whatever engine you throw at it. Five engines, one API. Run it locally, hit the endpoint, get audio back. Zero data leaves your machine.
 
-Think of it as a **local text-to-speech hub** — a single server that speaks Qwen3, Kokoro, Piper, and Chatterbox Turbo fluently.
+Think of it as a **local speech hub** — TTS via Qwen3, Kokoro, Piper, and Chatterbox Turbo; STT via Whisper MLX. All offline, all local.
 
 ---
 
 ## Engines at a glance
 
 | Engine | Framework | Voices | Vibe |
-|---|---|---|---|
+|---|---|---|---|---|
 | **Qwen3** | MLX | 11 built-in + custom cloning | Premium quality. Sounds almost human. Apple Silicon only. |
 | **Kokoro** | ONNX | 54 voices, 9 languages | The multilingual workhorse. Fast, reliable, goes everywhere. |
 | **Piper** | ONNX | 40+ languages, ~80 MB/voice | The speed demon. 100+ languages, tiny footprint, instant inference. |
 | **Chatterbox Turbo** | MLX | Voice cloning only | Best-in-class cloning. Feed it a WAV, get a twin. Apple Silicon only. |
+| **Whisper MLX** | MLX | 5 model sizes (tiny→large-v3) | Speech-to-text. Transcribe anything. Apple Silicon only. |
 
 More on each engine:
 - [Qwen3](docs/engines/qwen.md) — custom voice, voice design, voice cloning
 - [Kokoro](docs/engines/kokoro.md) — 54 built-in voices, 9 languages
 - [Piper](docs/engines/piper.md) — fastest inference, widest language support
 - [Chatterbox Turbo](docs/engines/chatterbox.md) — voice cloning via MLX
+- [Whisper MLX](docs/engines/whisper.md) — speech-to-text via MLX
 - [API Reference](docs/api.md) — full endpoint docs
 
 ---
@@ -96,6 +98,20 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 
 Drop-in replacement for `POST /v1/audio/speech`. Your existing OpenAI TTS code works without changes — just point it at `http://localhost:8000`.
 
+### Speech to text (OpenAI-compatible)
+
+```bash
+curl -X POST http://localhost:8000/v1/audio/transcriptions \
+  -F "file=@speech.mp3" \
+  -F "model=whisper-base" \
+  -F "language=en" \
+  -F "temperature=0.0"
+```
+
+```json
+{"text": "Hello world, this was transcribed locally."}
+```
+
 ---
 
 ## Documentation
@@ -115,16 +131,19 @@ Drop-in replacement for `POST /v1/audio/speech`. Your existing OpenAI TTS code w
 server.py               # FastAPI — the brain
 src/
   engines/
-    base.py             # The contract every engine signs
+    base.py             # The contract every TTS engine signs
     qwen.py             # Qwen3 (MLX)
     chatterbox.py       # Chatterbox Turbo (MLX)
     kokoro.py           # Kokoro (ONNX)
     piper.py            # Piper (ONNX)
-static/                 # Web UI — vanilla JS, no build step
+  stt/
+    base.py             # The contract every STT engine signs
+    whisper_mlx.py      # Whisper via MLX (Apple Silicon)
+static/                 # Web UI — Vue 3 (CDN), no build step
 docs/                   # Docs that don't suck
 models/                 # Downloaded models (gitignored)
 voices/                 # WAVs for voice cloning
-outputs/                # Generated MP3s
+outputs/                # Generated audio files
 ```
 
 ---
@@ -145,6 +164,8 @@ outputs/                # Generated MP3s
 | [Kokoro](https://github.com/thewh1teagle/kokoro-onnx) | TTS engine | Multilingual, ONNX-powered |
 | [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) | TTS engine | Premium quality, MLX-powered |
 | [Chatterbox Turbo](https://huggingface.co/mlx-community/Chatterbox-Turbo-TTS-fp16) | TTS engine | Cloning specialist, MLX-powered |
+| [mlx-whisper](https://github.com/ml-explore/mlx-whisper) | STT engine | Speech-to-text, MLX-powered |
+| [Whisper](https://github.com/openai/whisper) | STT model | OpenAI's transcription model |
 
 ---
 

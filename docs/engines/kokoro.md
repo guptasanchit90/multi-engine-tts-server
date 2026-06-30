@@ -86,6 +86,32 @@ See the full list at `GET /v1/voices`.
 
 ---
 
+## Voice blending
+
+Blend two or more voices by passing comma-separated IDs with optional weights:
+
+```bash
+curl -X POST http://localhost:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "kokoro",
+    "input": "This voice is a blend of two voices.",
+    "voice": "af_heart:0.3,af_bella:0.7",
+    "speed": 1.0
+  }' \
+  --output speech.mp3
+```
+
+Default weight is `0.5` if omitted. Use the `voice_blend` capability via the `"voice"` field with comma-separated voice IDs.
+
+---
+
+## Pauses
+
+Set `add_pauses` to `true` (default) to insert short silences after punctuation (periods, commas, question marks). Set to `false` for continuous speech.
+
+---
+
 ## Speed
 
 | Value | Multiplier |
@@ -103,6 +129,7 @@ Range: `0.25` – `4.0`
 - No voice cloning
 - No voice design
 - `temperature` and `seed` are accepted but ignored (ONNX is deterministic)
+- Voice blending via `voice` field with comma-separated IDs (e.g. `"af_heart:0.3,af_bella:0.7"`)
 
 ---
 
