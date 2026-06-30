@@ -456,6 +456,21 @@ comps['generate-form'] = {
     hasAvailSttModel() {
       return (this.$store.e2eModels || []).some(m => m.available);
     },
+    advancedSummary() {
+      const parts = [];
+      const caps = this.capabilities;
+      const f = this.$store.form;
+      parts.push(Number(f.speed).toFixed(2) + 'x');
+      if (caps.includes('temperature')) parts.push('Temp ' + Number(f.temperature).toFixed(1));
+      if (f.seed) parts.push('Seed ' + f.seed);
+      if (caps.includes('emotion')) {
+        parts.push('Exagg ' + Number(f.exaggeration).toFixed(2));
+        parts.push('CFG ' + Number(f.cfg_weight).toFixed(2));
+      }
+      if (this.modelEngine === 'kokoro' && f.add_pauses) parts.push('Pauses');
+      if (this.$store.e2eEnabled) parts.push('STT on');
+      return parts.length ? '— ' + parts.join(' · ') : '';
+    },
   },
   methods: {
     engineLabel(engine) {

@@ -73,6 +73,9 @@ const store = reactive({
   genStatus: '',
   genStatusClass: '',
 
+  // Advanced section
+  showAdvanced: false,
+
   // Upload / record status
   uploadStatus: '',
   uploadStatusClass: '',

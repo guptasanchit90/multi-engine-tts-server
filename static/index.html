@@ -336,67 +336,69 @@
           </div>
         </template>
 
-        <div class="range-row">
-          <div class="form-group">
-            <label for="speed">Speed</label>
-            <input type="range" id="speed" min="0.25" max="4.0" step="0.25" v-model.number="$store.form.speed">
-            <div class="range-label"><span>0.25x</span><span>{{ Number($store.form.speed).toFixed(2) }}x</span><span>4.0x</span></div>
-          </div>
-          <div class="form-group" v-if="capabilities.includes('temperature')">
-            <label for="temperature">Temperature</label>
-            <input type="range" id="temperature" min="0" max="2" step="0.1" v-model.number="$store.form.temperature">
-            <div class="range-label"><span>0</span><span>{{ Number($store.form.temperature).toFixed(1) }}</span><span>2</span></div>
-          </div>
-        </div>
-
-        <div class="range-row">
-          <div class="form-group">
-            <label for="seed">Seed (blank = random)</label>
-            <input type="number" id="seed" placeholder="Random" min="0" v-model.number="$store.form.seed">
-          </div>
-          <div class="form-group" v-if="modelEngine === 'kokoro'">
-            <div class="checkbox-group" style="margin-top:1.25rem">
-              <input type="checkbox" id="add_pauses" v-model="$store.form.add_pauses">
-              <label for="add_pauses">Punctuation pauses</label>
+        <div class="advanced-section">
+          <button class="advanced-toggle" :class="{ open: $store.showAdvanced }" @click="$store.showAdvanced = !$store.showAdvanced" type="button">
+            <span class="advanced-arrow">&#9654;</span>
+            <span>Advanced</span>
+            <span class="advanced-summary" v-if="!$store.showAdvanced">{{ advancedSummary }}</span>
+          </button>
+          <div class="advanced-body" :class="{ open: $store.showAdvanced }">
+            <div class="range-row" style="margin-bottom:0.75rem">
+              <div class="form-group">
+                <label for="adv_speed">Speed</label>
+                <input type="range" id="adv_speed" min="0.25" max="4.0" step="0.25" v-model.number="$store.form.speed">
+                <div class="range-label"><span>0.25x</span><span>{{ Number($store.form.speed).toFixed(2) }}x</span><span>4.0x</span></div>
+              </div>
+            </div>
+            <div class="range-row">
+              <div class="form-group" v-if="capabilities.includes('temperature')">
+                <label for="adv_temperature">Temperature</label>
+                <input type="range" id="adv_temperature" min="0" max="2" step="0.1" v-model.number="$store.form.temperature">
+                <div class="range-label"><span>0</span><span>{{ Number($store.form.temperature).toFixed(1) }}</span><span>2</span></div>
+              </div>
+              <div class="form-group">
+                <label for="adv_seed">Seed (blank = random)</label>
+                <input type="number" id="adv_seed" placeholder="Random" min="0" v-model.number="$store.form.seed">
+              </div>
+            </div>
+            <div class="range-row" v-if="capabilities.includes('emotion')">
+              <div class="form-group">
+                <label for="adv_exaggeration">Exaggeration (emotion)</label>
+                <input type="range" id="adv_exaggeration" min="0" max="1" step="0.05" v-model.number="$store.form.exaggeration">
+                <div class="range-label"><span>0</span><span>{{ Number($store.form.exaggeration).toFixed(2) }}</span><span>1</span></div>
+              </div>
+              <div class="form-group">
+                <label for="adv_cfg_weight">CFG Weight</label>
+                <input type="range" id="adv_cfg_weight" min="0" max="1" step="0.05" v-model.number="$store.form.cfg_weight">
+                <div class="range-label"><span>0</span><span>{{ Number($store.form.cfg_weight).toFixed(2) }}</span><span>1</span></div>
+                <div class="voice-hint">&gt; 0.5 may truncate</div>
+              </div>
+            </div>
+            <div class="checkbox-group" v-if="modelEngine === 'kokoro'" style="margin-top:0.25rem">
+              <input type="checkbox" id="adv_add_pauses" v-model="$store.form.add_pauses">
+              <label for="adv_add_pauses">Punctuation pauses</label>
+            </div>
+            <div class="e2e-section">
+              <div class="checkbox-group">
+                <input type="checkbox" id="e2e_enabled" v-model="$store.e2eEnabled" :disabled="!hasAvailSttModel">
+                <label for="e2e_enabled">Validate with STT (transcribe &amp; compare)</label>
+              </div>
+              <template v-if="$store.e2eEnabled">
+                <div class="form-group">
+                  <label for="e2e_model">STT Model</label>
+                  <select id="e2e_model" v-model="$store.e2eModel">
+                    <option v-for="m in $store.e2eModels" :key="m.id" :value="m.id" :disabled="!m.available">
+                      {{ m.name }}{{ m.available ? '' : ' [install]' }}
+                    </option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="e2e_language">Language (optional)</label>
+                  <input type="text" id="e2e_language" v-model="$store.e2eLanguage" placeholder="e.g. en">
+                </div>
+              </template>
             </div>
           </div>
-        </div>
-
-        <div v-if="capabilities.includes('emotion')" class="emotion-section">
-          <div class="range-row">
-            <div class="form-group">
-              <label for="exaggeration">Exaggeration (emotion)</label>
-              <input type="range" id="exaggeration" min="0" max="1" step="0.05" v-model.number="$store.form.exaggeration">
-              <div class="range-label"><span>0</span><span>{{ Number($store.form.exaggeration).toFixed(2) }}</span><span>1</span></div>
-            </div>
-            <div class="form-group">
-              <label for="cfg_weight">CFG Weight</label>
-              <input type="range" id="cfg_weight" min="0" max="1" step="0.05" v-model.number="$store.form.cfg_weight">
-              <div class="range-label"><span>0</span><span>{{ Number($store.form.cfg_weight).toFixed(2) }}</span><span>1</span></div>
-              <div class="voice-hint">&gt; 0.5 may truncate</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="e2e-section">
-          <div class="checkbox-group">
-            <input type="checkbox" id="e2e_enabled" v-model="$store.e2eEnabled" :disabled="!hasAvailSttModel">
-            <label for="e2e_enabled">Validate with STT (transcribe &amp; compare)</label>
-          </div>
-          <template v-if="$store.e2eEnabled">
-            <div class="form-group">
-              <label for="e2e_model">STT Model</label>
-              <select id="e2e_model" v-model="$store.e2eModel">
-                <option v-for="m in $store.e2eModels" :key="m.id" :value="m.id" :disabled="!m.available">
-                  {{ m.name }}{{ m.available ? '' : ' [install]' }}
-                </option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="e2e_language">Language (optional)</label>
-              <input type="text" id="e2e_language" v-model="$store.e2eLanguage" placeholder="e.g. en">
-            </div>
-          </template>
         </div>
 
         <button type="submit" class="btn" :class="[{ loading: $store.loading }, btnState]" :disabled="$store.loading || batchSubmitDisabled">
