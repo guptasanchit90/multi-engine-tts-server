@@ -5,8 +5,9 @@ Multi-engine, offline text-to-speech (+ speech-to-text) on your Mac. No cloud. N
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-blue.svg)](.python-version)
 [![Platform](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black)](https://www.apple.com/mac/)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/anomalyco/sonus/blob/main/colab_quickstart.ipynb)
 
-Runs on [MLX](https://github.com/ml-explore/mlx) and [ONNX Runtime](https://onnxruntime.ai/) — Apple Silicon only, because we like it fast.
+Runs on [MLX](https://github.com/ml-explore/mlx) and [ONNX Runtime](https://onnxruntime.ai/) — Apple Silicon for MLX engines, **any platform** for ONNX engines (Kokoro, Piper).
 
 > **About the name:** *Sonus* is Latin for "sound" (/ˈsoː.nus/). Felt right for a project about making machines talk.
 >
@@ -28,11 +29,11 @@ Think of it as a **local speech hub** — TTS via Qwen3, Kokoro, Piper, and Chat
 
 | Engine | Framework | Voices | Vibe |
 |---|---|---|---|---|
-| **Qwen3** | MLX | 11 built-in + custom cloning | Premium quality. Sounds almost human. Apple Silicon only. |
-| **Kokoro** | ONNX | 54 voices, 9 languages | The multilingual workhorse. Fast, reliable, goes everywhere. |
-| **Piper** | ONNX | 40+ languages, ~80 MB/voice | The speed demon. 100+ languages, tiny footprint, instant inference. |
-| **Chatterbox Turbo** | MLX | Voice cloning only | Best-in-class cloning. Feed it a WAV, get a twin. Apple Silicon only. |
-| **Whisper MLX** | MLX | 5 model sizes (tiny→large-v3) | Speech-to-text. Transcribe anything. Apple Silicon only. |
+| **Qwen3** | MLX | 11 built-in + custom cloning | Premium quality. Sounds almost human. 🍎 Apple Silicon only. |
+| **Kokoro** | ONNX | 54 voices, 9 languages | The multilingual workhorse. Fast, reliable. ✅ Cross-platform. |
+| **Piper** | ONNX | 40+ languages, ~80 MB/voice | The speed demon. 100+ languages, tiny footprint. ✅ Cross-platform. |
+| **Chatterbox Turbo** | MLX | Voice cloning only | Best-in-class cloning. Feed it a WAV, get a twin. 🍎 Apple Silicon only. |
+| **Whisper MLX** | MLX | 5 model sizes (tiny→large-v3) | Speech-to-text. Transcribe anything. 🍎 Apple Silicon only. |
 
 More on each engine:
 - [Qwen3](docs/engines/qwen.md) — custom voice, voice design, voice cloning
@@ -46,9 +47,15 @@ More on each engine:
 
 ## What you'll need
 
+**Local (macOS Apple Silicon):**
 - A Mac with Apple Silicon (M1, M2, M3, M4 — anything with Metal)
 - Python 3.13+ (`brew install python@3.13`)
 - [ffmpeg](https://ffmpeg.org/) — `brew install ffmpeg`
+
+**Colab (any platform):** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/anomalyco/sonus/blob/main/colab_quickstart.ipynb)
+- Kokoro and Piper engines only (MLX engines require Apple Silicon)
+- No GPU needed — runs on CPU, but T4 GPU available if you want it
+- No setup beyond clicking the badge above
 
 > **Running in Docker?** Only Kokoro and Piper work there. Qwen3 and Chatterbox need the Metal GPU backend. See each engine's doc for details.
 
@@ -75,6 +82,14 @@ python server.py
 ```
 
 Interactive API docs: **http://localhost:8000/api-docs**
+
+### Or run in Google Colab
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/anomalyco/sonus/blob/main/colab_quickstart.ipynb)
+
+Click the badge above and follow the notebook. It installs everything, downloads models, starts the server, and gives you a public URL via localtunnel.
+
+Includes engine selection (Kokoro, Piper, or both) — no Apple Silicon required.
 
 ---
 
