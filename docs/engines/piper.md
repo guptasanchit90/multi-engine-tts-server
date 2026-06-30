@@ -8,22 +8,34 @@
 
 ## Model Download
 
-Each voice needs two files (`.onnx` + `.onnx.json`) in `models/piper/`. Use the built-in downloader:
+Each voice needs two files (`.onnx` + `.onnx.json`) in `models/piper/`. Use either method:
+
+**Method A — hf (recommended):**
 
 ```bash
 source venv/bin/activate
 
 # English (US)
-python -m piper.download_voices --download-dir models/piper en_US-lessac-medium
+hf download rhasspy/piper-voices en/en_US/lessac/medium/en_US-lessac-medium.onnx --local-dir models/piper
+hf download rhasspy/piper-voices en/en_US/lessac/medium/en_US-lessac-medium.onnx.json --local-dir models/piper
 
 # English (UK)
-python -m piper.download_voices --download-dir models/piper en_GB-alba-medium
+hf download rhasspy/piper-voices en/en_GB/alba/medium/en_GB-alba-medium.onnx --local-dir models/piper
+hf download rhasspy/piper-voices en/en_GB/alba/medium/en_GB-alba-medium.onnx.json --local-dir models/piper
 
 # German
-python -m piper.download_voices --download-dir models/piper de_DE-thorsten-low
+hf download rhasspy/piper-voices de/de_DE/thorsten/low/de_DE-thorsten-low.onnx --local-dir models/piper
+hf download rhasspy/piper-voices de/de_DE/thorsten/low/de_DE-thorsten-low.onnx.json --local-dir models/piper
 
 # French
-python -m piper.download_voices --download-dir models/piper fr_FR-siwis-medium
+hf download rhasspy/piper-voices fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx --local-dir models/piper
+hf download rhasspy/piper-voices fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx.json --local-dir models/piper
+```
+
+**Method B — shell script (bundled with repo):**
+
+```bash
+bash scripts/download_models.sh models piper en_US-lessac-medium
 ```
 
 Expected layout:

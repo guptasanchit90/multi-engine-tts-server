@@ -703,6 +703,9 @@
                   <span class="mm-size" v-if="item.size">{{ item.size }}</span>
                 </div>
                 <div class="mm-desc" v-if="item.description">{{ item.description }}</div>
+                <div class="mm-url" v-if="item.install && item.install.url">
+                  <a :href="item.install.url" target="_blank" rel="noopener">{{ item.install.source || 'Source' }}</a>
+                </div>
                 <div class="mm-id">ID: <code>{{ item.id }}</code> &middot; Model: <code>{{ item.model }}</code></div>
 
                 <div class="mm-tags" v-if="item.capabilities && item.capabilities.length">
@@ -779,6 +782,9 @@
                   <span class="mm-size" v-if="item.size">{{ item.size }}</span>
                 </div>
                 <div class="mm-desc" v-if="item.description">{{ item.description }}</div>
+                <div class="mm-url" v-if="item.install && item.install.url">
+                  <a :href="item.install.url" target="_blank" rel="noopener">{{ item.install.source || 'Source' }}</a>
+                </div>
                 <div class="mm-id">ID: <code>{{ item.id }}</code> &middot; Model: <code>{{ item.model }}</code></div>
 
                 <div class="mm-tags" v-if="item.capabilities && item.capabilities.length">

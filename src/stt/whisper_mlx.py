@@ -72,6 +72,8 @@ class WhisperMlxEngine(BaseSTTEngine):
                 "languages": ["en", "multi"],
                 "size": _MODEL_SIZES.get(mid, ""),
                 "install": {
+                    "source": "HuggingFace",
+                    "url": f"https://huggingface.co/{_REPOS[mid]}",
                     "commands": [
                         f"hf download {_REPOS[mid]} --local-dir models/whisper/{mid}",
                     ],

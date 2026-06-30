@@ -170,12 +170,15 @@ class ChatterboxEngine(BaseEngine):
                 "voices": voices,
                 "languages": _MODEL_META[model_key]["languages"],
                 "install": {
-                    "source": "huggingface",
+                    "source": "HuggingFace",
+                    "url": f"https://huggingface.co/{_hf_repo(folder)}",
                     "commands": [
                         f"hf download {_hf_repo(folder)} --local-dir models/chatterbox/{folder}",
                     ],
                 },
                 "install_s3_tokenizer": {
+                    "source": "HuggingFace",
+                    "url": "https://huggingface.co/mlx-community/S3TokenizerV2",
                     "message": "S3Tokenizer required (auto-downloaded if missing):",
                     "commands": [
                         "hf download mlx-community/S3TokenizerV2 --local-dir models/chatterbox/s3_tokenizer",

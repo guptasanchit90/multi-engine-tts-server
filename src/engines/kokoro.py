@@ -194,7 +194,8 @@ class KokoroEngine(BaseEngine):
                 "voices": {"built_in": sorted(_ALL_VOICES), "cloneable": []},
                 "languages": sorted(set(_LANG_MAP.values())),
                 "install": {
-                    "source": "github",
+                    "source": "GitHub Releases",
+                    "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0",
                     "commands": [
                         "curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx --output-dir models/kokoro",
                         "curl -LO https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin --output-dir models/kokoro",

@@ -25,14 +25,17 @@ def _scan_voices() -> dict[str, str]:
     voices: dict[str, str] = {}
     if not os.path.exists(MODELS_DIR):
         return voices
-    for fname in os.listdir(MODELS_DIR):
-        if not fname.endswith(".onnx"):
+    for root, _dirs, files in os.walk(MODELS_DIR):
+        if ".cache" in root:
             continue
-        onnx_path = os.path.join(MODELS_DIR, fname)
-        json_path = onnx_path + ".json"
-        if os.path.exists(json_path):
-            voice_name = fname[:-5]
-            voices[voice_name] = onnx_path
+        for fname in files:
+            if not fname.endswith(".onnx"):
+                continue
+            onnx_path = os.path.join(root, fname)
+            json_path = onnx_path + ".json"
+            if os.path.exists(json_path):
+                voice_name = fname[:-5]
+                voices[voice_name] = onnx_path
     return voices
 
 
@@ -68,11 +71,13 @@ class PiperEngine(BaseEngine):
                 "voices": {"built_in": sorted(voices), "cloneable": []},
                 "languages": sorted({v.split("-")[0].split("_")[0].lower() for v in voices}),
                 "install": {
-                    "source": "piper",
+                    "source": "HuggingFace",
+                    "url": "https://huggingface.co/rhasspy/piper-voices",
                     "commands": [
-                        "python -m piper.download_voices --download-dir models/piper <voice_name>",
+                        "bash scripts/download_models.sh models piper en_US-lessac-medium",
+                        "bash scripts/download_models.sh models piper-all",
                     ],
-                    "note": "Replace <voice_name> with e.g. en_US-lessac-medium",
+                    "note": "Single voice or all ~160 voices (~10 GB total)",
                 },
             }
         ]
@@ -94,7 +99,7 @@ class PiperEngine(BaseEngine):
                 status_code=422,
                 detail=(
                     f"Piper voice '{model}' not found in {MODELS_DIR}. "
-                    f"Download it with: python -m piper.download_voices --download-dir models/piper {model}"
+                    f"Download it with: bash scripts/download_models.sh models piper {model}"
                 ),
             )
 

@@ -246,7 +246,8 @@ class QwenEngine(BaseEngine):
                 "voices": _voices(mode),
                 "languages": ["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
                 "install": {
-                    "source": "huggingface",
+                    "source": "HuggingFace",
+                    "url": f"https://huggingface.co/mlx-community/{folder}",
                     "commands": [
                         f"hf download mlx-community/{folder} --local-dir models/qwen/{folder}",
                     ],
