@@ -362,6 +362,22 @@
           </div>
         </div>
 
+        <div v-if="capabilities.includes('emotion')" class="emotion-section">
+          <div class="range-row">
+            <div class="form-group">
+              <label for="exaggeration">Exaggeration (emotion)</label>
+              <input type="range" id="exaggeration" min="0" max="1" step="0.05" v-model.number="$store.form.exaggeration">
+              <div class="range-label"><span>0</span><span>{{ Number($store.form.exaggeration).toFixed(2) }}</span><span>1</span></div>
+            </div>
+            <div class="form-group">
+              <label for="cfg_weight">CFG Weight</label>
+              <input type="range" id="cfg_weight" min="0" max="1" step="0.05" v-model.number="$store.form.cfg_weight">
+              <div class="range-label"><span>0</span><span>{{ Number($store.form.cfg_weight).toFixed(2) }}</span><span>1</span></div>
+              <div class="voice-hint">&gt; 0.5 may truncate</div>
+            </div>
+          </div>
+        </div>
+
         <div class="e2e-section">
           <div class="checkbox-group">
             <input type="checkbox" id="e2e_enabled" v-model="$store.e2eEnabled" :disabled="!hasAvailSttModel">

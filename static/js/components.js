@@ -371,6 +371,10 @@ comps['generate-form'] = {
       body.temperature = parseFloat(this.$store.form.temperature);
       if (this.$store.form.seed) body.seed = parseInt(this.$store.form.seed, 10);
       body.add_pauses = this.$store.form.add_pauses;
+      if (caps.includes('emotion')) {
+        body.exaggeration = parseFloat(this.$store.form.exaggeration);
+        body.cfg_weight = parseFloat(this.$store.form.cfg_weight);
+      }
       const json = JSON.stringify(body, null, 2);
       return [
         'curl -X POST http://localhost:8000/v1/audio/speech \\',
@@ -467,6 +471,8 @@ comps['generate-form'] = {
       this.$store.form.speaker_name = '';
       this.$store.form.voice_description = '';
       this.$store.form.sample_voice_file = '';
+      this.$store.form.exaggeration = 0.1;
+      this.$store.form.cfg_weight = 0.0;
       this.$store.blendMode = false;
       this.$store.blendSelections = {};
     },
@@ -548,6 +554,10 @@ comps['generate-form'] = {
       body.temperature = parseFloat(this.$store.form.temperature);
       if (this.$store.form.seed) body.seed = parseInt(this.$store.form.seed, 10);
       body.add_pauses = this.$store.form.add_pauses;
+      if (caps.includes('emotion')) {
+        body.exaggeration = parseFloat(this.$store.form.exaggeration);
+        body.cfg_weight = parseFloat(this.$store.form.cfg_weight);
+      }
 
       this.$store.loading = true;
       this.genStatus = '';
@@ -906,6 +916,10 @@ comps['curl-console'] = {
       body.temperature = parseFloat(store.form.temperature);
       if (store.form.seed) body.seed = parseInt(store.form.seed, 10);
       body.add_pauses = store.form.add_pauses;
+      if (caps.includes('emotion')) {
+        body.exaggeration = parseFloat(store.form.exaggeration);
+        body.cfg_weight = parseFloat(store.form.cfg_weight);
+      }
 
       const json = JSON.stringify(body, null, 2);
       return [
@@ -1290,6 +1304,8 @@ comps['params-modal'] = {
           this.$store.form.sample_voice_file = p.voice;
         }
       }
+      if (p.exaggeration != null) this.$store.form.exaggeration = p.exaggeration;
+      if (p.cfg_weight != null) this.$store.form.cfg_weight = p.cfg_weight;
       this.close();
     },
     deleteOut() {

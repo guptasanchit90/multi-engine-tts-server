@@ -20,6 +20,8 @@ const store = reactive({
     temperature: 0,
     seed: null,
     add_pauses: true,
+    exaggeration: 0.1,
+    cfg_weight: 0.0,
   },
 
   // Audio player

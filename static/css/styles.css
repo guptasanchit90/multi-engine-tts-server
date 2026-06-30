@@ -741,6 +741,18 @@ input[type="range"] {
 .bd-item { margin-bottom: 0.4rem; }
 .bd-item:last-child { margin-bottom: 0; }
 
+/* Emotion section (Chatterbox) */
+.emotion-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.emotion-section .form-group {
+  margin-bottom: 0.5rem;
+}
+
 /* E2E validation section */
 .e2e-section {
   margin-top: 0.75rem;

@@ -135,6 +135,8 @@ class OpenAIRequest(BaseModel):
     response_format: str = "mp3"
     speed: float = 1.0
     add_pauses: bool = True
+    exaggeration: float | None = None
+    cfg_weight: float | None = None
 
     @field_validator("input")
     @classmethod
@@ -233,6 +235,12 @@ def _openai_to_internal(req: OpenAIRequest, manifest: dict) -> dict:
             d["voice_description"] = req.voice
         elif "speaker" in caps or "voice_blend" in caps:
             d["speaker_name"] = req.voice
+
+    if "emotion" in caps:
+        if req.exaggeration is not None:
+            d["exaggeration"] = req.exaggeration
+        if req.cfg_weight is not None:
+            d["cfg_weight"] = req.cfg_weight
 
     return d
 
