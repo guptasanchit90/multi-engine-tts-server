@@ -27,9 +27,9 @@ Think of it as a **local speech hub** — TTS via Qwen3, Kokoro, Piper, and Chat
 
 No Mac? No problem. Kokoro and Piper (ONNX engines) work on any platform. Click a badge to open a pre-configured notebook — it installs everything, downloads models, starts the server, and gives you a public URL.
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/guptasanchit90/sonus/blob/main/colab_quickstart.ipynb)
-[![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://www.kaggle.com/kernels/welcome?src=https://raw.githubusercontent.com/guptasanchit90/sonus/main/kaggle_quickstart.ipynb)
-[![Open In SageMaker Studio Lab](https://img.shields.io/badge/Open%20in-SageMaker%20Studio%20Lab-important?logo=amazon-aws)](https://studiolab.sagemaker.aws/import/github/guptasanchit90/sonus/blob/main/sagemaker_quickstart.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/guptasanchit90/sonus/blob/main/notebooks/colab_quickstart.ipynb)
+[![Open In Kaggle](https://kaggle.com/static/images/open-in-kaggle.svg)](https://www.kaggle.com/kernels/welcome?src=https://raw.githubusercontent.com/guptasanchit90/sonus/main/notebooks/kaggle_quickstart.ipynb)
+[![Open In SageMaker Studio Lab](https://img.shields.io/badge/Open%20in-SageMaker%20Studio%20Lab-important?logo=amazon-aws)](https://studiolab.sagemaker.aws/import/github/guptasanchit90/sonus/blob/main/notebooks/sagemaker_quickstart.ipynb)
 
 ---
 

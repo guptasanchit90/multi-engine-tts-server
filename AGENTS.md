@@ -17,6 +17,7 @@ src/
     __init__.py             # Imports all engine modules
 static/                     # Web UI (vanilla JS, no build)
 docs/                       # API reference + per-engine docs
+notebooks/                  # Quickstart notebooks (Colab, Kaggle, SageMaker)
 ```
 
 ## Setup
@@ -39,6 +40,14 @@ pyright server.py src/
 ## Adding an engine
 
 Create `src/engines/<name>.py` implementing `TTSEngine` (5 methods: `claims`, `list_models`, `list_voices`, `validate`, `generate`), add `@register`, import in `src/engines/__init__.py`, and write `docs/engines/<name>.md`. See `CONTRIBUTING.md` for full details.
+
+## Notebooks
+
+Quickstart notebooks in `notebooks/` mirror the onboarding flow. When adding/renaming engines, models, dependencies, or endpoints, keep the notebooks in sync — update model lists, install commands, API calls, and UI references.
+
+## Dependencies
+
+`requirements.txt` has all deps (including MLX). `requirements-non-mlx.txt` mirrors it without Apple Silicon packages. Keep both in sync — when adding/updating a dependency in `requirements.txt`, add it to `requirements-non-mlx.txt` too (unless it's MLX-specific).
 
 ## Engine patterns
 
