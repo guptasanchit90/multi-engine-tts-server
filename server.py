@@ -135,6 +135,7 @@ class OpenAIRequest(BaseModel):
     response_format: str = "mp3"
     speed: float = 1.0
     add_pauses: bool = True
+    temperature: float | None = None
     exaggeration: float | None = None
     cfg_weight: float | None = None
 
@@ -213,7 +214,7 @@ def _openai_to_internal(req: OpenAIRequest, manifest: dict) -> dict:
         "text": req.input,
         "speed": speed_key,
         "speed_value": req.speed,
-        "temperature": 0.7,
+        "temperature": req.temperature if req.temperature is not None else 0.7,
         "seed": None,
         "add_pauses": req.add_pauses,
         "speaker_name": None,

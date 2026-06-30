@@ -20,12 +20,6 @@ from .base import BaseEngine, register
 
 MODELS_DIR = os.path.join(os.getcwd(), "models", "piper")
 
-_LENGTH_SCALE: dict[str, float] = {
-    "slow": 1.4,
-    "normal": 1.0,
-    "fast": 0.75,
-}
-
 
 def _scan_voices() -> dict[str, str]:
     voices: dict[str, str] = {}
@@ -107,8 +101,8 @@ class PiperEngine(BaseEngine):
     def generate(self, request: dict, tmp_dir: str) -> str:
         model = request["model"]
         text = request["text"]
-        speed_key = request["speed"]
-        length_scale = _LENGTH_SCALE.get(speed_key, 1.0)
+        speed_val = request.get("speed_value", 1.0)
+        length_scale = 1.0 / max(speed_val, 0.25)
 
         voices = _scan_voices()
         onnx_path = voices.get(model)

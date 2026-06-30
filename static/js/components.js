@@ -368,7 +368,9 @@ comps['generate-form'] = {
       const body = { model: m, input: t, speed: parseFloat(this.$store.form.speed) };
       const voice = buildVoiceForCapabilities(caps, this.$store);
       if (voice) body.voice = voice;
-      body.temperature = parseFloat(this.$store.form.temperature);
+      if (caps.includes('temperature')) {
+        body.temperature = parseFloat(this.$store.form.temperature);
+      }
       if (this.$store.form.seed) body.seed = parseInt(this.$store.form.seed, 10);
       body.add_pauses = this.$store.form.add_pauses;
       if (caps.includes('emotion')) {
@@ -551,7 +553,9 @@ comps['generate-form'] = {
         return;
       }
 
-      body.temperature = parseFloat(this.$store.form.temperature);
+      if (caps.includes('temperature')) {
+        body.temperature = parseFloat(this.$store.form.temperature);
+      }
       if (this.$store.form.seed) body.seed = parseInt(this.$store.form.seed, 10);
       body.add_pauses = this.$store.form.add_pauses;
       if (caps.includes('emotion')) {
@@ -913,7 +917,9 @@ comps['curl-console'] = {
       const voice = buildVoiceForCapabilities(caps, store);
       if (voice) body.voice = voice;
 
-      body.temperature = parseFloat(store.form.temperature);
+      if (caps.includes('temperature')) {
+        body.temperature = parseFloat(store.form.temperature);
+      }
       if (store.form.seed) body.seed = parseInt(store.form.seed, 10);
       body.add_pauses = store.form.add_pauses;
       if (caps.includes('emotion')) {
