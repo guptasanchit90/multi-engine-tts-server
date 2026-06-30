@@ -5,7 +5,7 @@ Multi-engine, offline text-to-speech (+ speech-to-text) on your Mac. No cloud. N
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13+-blue.svg)](.python-version)
 [![Platform](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black)](https://www.apple.com/mac/)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/anomalyco/sonus/blob/main/colab_quickstart.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/guptasanchit90/sonus/blob/main/colab_quickstart.ipynb)
 
 Runs on [MLX](https://github.com/ml-explore/mlx) and [ONNX Runtime](https://onnxruntime.ai/) — Apple Silicon for MLX engines, **any platform** for ONNX engines (Kokoro, Piper).
 
@@ -28,7 +28,7 @@ Think of it as a **local speech hub** — TTS via Qwen3, Kokoro, Piper, and Chat
 ## Engines at a glance
 
 | Engine | Framework | Voices | Vibe |
-|---|---|---|---|---|
+|---|---|---|---|
 | **Qwen3** | MLX | 11 built-in + custom cloning | Premium quality. Sounds almost human. 🍎 Apple Silicon only. |
 | **Kokoro** | ONNX | 54 voices, 9 languages | The multilingual workhorse. Fast, reliable. ✅ Cross-platform. |
 | **Piper** | ONNX | 40+ languages, ~80 MB/voice | The speed demon. 100+ languages, tiny footprint. ✅ Cross-platform. |
@@ -52,7 +52,7 @@ More on each engine:
 - Python 3.13+ (`brew install python@3.13`)
 - [ffmpeg](https://ffmpeg.org/) — `brew install ffmpeg`
 
-**Colab (any platform):** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/anomalyco/sonus/blob/main/colab_quickstart.ipynb)
+**Colab (any platform):** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/guptasanchit90/sonus/blob/main/colab_quickstart.ipynb)
 - Kokoro and Piper engines only (MLX engines require Apple Silicon)
 - No GPU needed — runs on CPU, but T4 GPU available if you want it
 - No setup beyond clicking the badge above
@@ -85,7 +85,7 @@ Interactive API docs: **http://localhost:8000/api-docs**
 
 ### Or run in Google Colab
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/anomalyco/sonus/blob/main/colab_quickstart.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/guptasanchit90/sonus/blob/main/colab_quickstart.ipynb)
 
 Click the badge above and follow the notebook. It installs everything, downloads models, starts the server, and gives you a public URL via localtunnel.
 
