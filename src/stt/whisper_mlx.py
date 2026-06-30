@@ -68,6 +68,7 @@ class WhisperMlxEngine(BaseSTTEngine):
                 "capabilities": ["transcribe"],
                 "description": f"OpenAI Whisper via MLX ({mid})",
                 "available": _MLX_WHISPER_AVAILABLE and _model_path(mid) is not None,
+                "mlx_required": True,
                 "languages": ["en", "multi"],
                 "size": _MODEL_SIZES.get(mid, ""),
                 "install": {

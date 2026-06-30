@@ -239,7 +239,8 @@ class QwenEngine(BaseEngine):
                 "capabilities": meta[folder]["capabilities"],
                 "description": meta[folder]["description"],
                 "size": meta[folder].get("size", ""),
-                "available": _model_path(MODELS_DIR, folder) is not None,
+                "available": _model_path(MODELS_DIR, folder) is not None and _MLX_AVAILABLE,
+                "mlx_required": True,
                 "voices": _voices(mode),
                 "languages": ["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
                 "install": {
