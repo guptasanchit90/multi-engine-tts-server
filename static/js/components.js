@@ -1364,14 +1364,16 @@ comps['params-modal'] = {
   },
 };
 
-// ── Install Modal ────────────────────────────────────────────────────────────
-comps['install-modal'] = {
-  template: '#install-modal-template',
+// ── Manage Models Modal ──────────────────────────────────────────────────────
+comps['manage-models-modal'] = {
+  template: '#manage-models-modal-template',
+  data() {
+    return { activeTab: 'tts', expanded: {}, sttExpanded: {}, status: '', statusClass: '' };
+  },
   computed: {
     groups() {
       const g = {};
       this.$store.models.forEach(m => {
-        if (!m.install) return;
         const e = m.engine || 'other';
         if (!g[e]) g[e] = [];
         g[e].push(m);
@@ -1381,12 +1383,112 @@ comps['install-modal'] = {
     engineNames() {
       return Object.keys(this.groups).sort();
     },
+    engineStats() {
+      const s = {};
+      this.engineNames.forEach(eng => {
+        const models = this.groups[eng];
+        const avail = models.filter(m => m.available).length;
+        const gb = models.reduce((sum, m) => {
+          if (!m.size) return sum;
+          const p = m.size.match(/^([\d.]+)\s*(GB|MB)/);
+          return p ? sum + (p[2] === 'GB' ? parseFloat(p[1]) : parseFloat(p[1]) / 1000) : sum;
+        }, 0);
+        s[eng] = { available: avail, total: models.length, totalGb: Math.round(gb * 10) / 10 };
+      });
+      return s;
+    },
+    sttGroups() {
+      const g = {};
+      this.$store.e2eModels.forEach(m => {
+        const e = m.engine || 'other';
+        if (!g[e]) g[e] = [];
+        g[e].push(m);
+      });
+      return g;
+    },
+    sttEngineNames() {
+      return Object.keys(this.sttGroups).sort();
+    },
+    sttEngineStats() {
+      const s = {};
+      this.sttEngineNames.forEach(eng => {
+        const models = this.sttGroups[eng];
+        const avail = models.filter(m => m.available).length;
+        const gb = models.reduce((sum, m) => {
+          if (!m.size) return sum;
+          const p = m.size.match(/^([\d.]+)\s*(GB|MB)/);
+          return p ? sum + (p[2] === 'GB' ? parseFloat(p[1]) : parseFloat(p[1]) / 1000) : sum;
+        }, 0);
+        s[eng] = { available: avail, total: models.length, totalGb: Math.round(gb * 10) / 10 };
+      });
+      return s;
+    },
   },
+  mounted() {},
   methods: {
+    switchTab(tab) { this.activeTab = tab; },
+    toggleEngine(name) {
+      this.expanded[name] = !this.expanded[name];
+    },
+    toggleSttEngine(name) {
+      this.sttExpanded[name] = !this.sttExpanded[name];
+    },
+    derivedRemove(item) {
+      if (!item.install || !item.install.commands) return null;
+      const removes = item.install.commands.map(cmd => this._toRemove(cmd)).filter(Boolean);
+      return removes.length ? removes : null;
+    },
+    _toRemove(cmd) {
+      const hf = cmd.match(/hf\s+download\s+\S+\s+--local-dir\s+(\S+)/);
+      if (hf) return 'rm -rf ' + hf[1];
+      const curl = cmd.match(/curl\s+-LO\s+(\S+)\s+--output-dir\s+(\S+)/);
+      if (curl) {
+        const dir = curl[2], file = curl[1].split('/').pop();
+        return file ? 'rm ' + dir + '/' + file : null;
+      }
+      const pip = cmd.match(/python\s+-m\s+piper\.download_voices\s+--download-dir\s+(\S+)\s+(\S+)/);
+      if (pip) return 'rm ' + pip[1] + '/' + pip[2] + '.*';
+      return null;
+    },
+    confirmDownload(item) {
+      const cmds = item.install.commands.join('\n');
+      if (!confirm('Download "' + item.name + '" (' + item.id + ')?\n\nIt is recommended to run these commands in your terminal:\n\n' + cmds + '\n\nCopy commands to clipboard?')) return;
+      this._copyAll(item.install.commands);
+      this._flash('Download commands copied to clipboard!', 'success');
+    },
+    confirmRemove(item) {
+      const rm = this.derivedRemove(item);
+      if (!rm) {
+        if (!confirm('Remove "' + item.name + '" (' + item.id + ')?\n\nNo automatic remove command available. Delete the model directory manually from models/')) return;
+        return;
+      }
+      const text = rm.join('\n');
+      if (!confirm('Remove "' + item.name + '" (' + item.id + ')?\n\nRun these commands in your terminal (recommended):\n\n' + text + '\n\nCopy commands to clipboard?')) return;
+      this._copyAll(rm);
+      this._flash('Remove commands copied to clipboard!', 'success');
+    },
+    copyAll(item) {
+      const all = [];
+      if (item.install && item.install.commands) all.push(...item.install.commands);
+      const rm = this.derivedRemove(item);
+      if (rm) all.push(...rm);
+      if (!all.length) return;
+      this._copyAll(all);
+      this._flash('All commands copied to clipboard!', 'success');
+    },
+    _copyAll(cmds) {
+      const text = cmds.join('\n');
+      navigator.clipboard.writeText(text).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      });
+    },
     copyCmd(cmd) {
-      navigator.clipboard.writeText(cmd).then(() => {
-        // Flash feedback handled in template
-      }).catch(() => {
+      navigator.clipboard.writeText(cmd).then(() => {}).catch(() => {
         const ta = document.createElement('textarea');
         ta.value = cmd;
         document.body.appendChild(ta);
@@ -1395,7 +1497,13 @@ comps['install-modal'] = {
         document.body.removeChild(ta);
       });
     },
-    close() { this.$store.showInstall = false; },
+    _flash(msg, cls) {
+      this.status = msg;
+      this.statusClass = cls;
+      clearTimeout(this._flashTimer);
+      this._flashTimer = setTimeout(() => { this.status = ''; }, 2500);
+    },
+    close() { this.$store.showManage = false; },
   },
 };
 

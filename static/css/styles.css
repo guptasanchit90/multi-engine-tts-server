@@ -472,52 +472,122 @@ input[type="range"] {
 .curl-placeholder { color: var(--muted); font-style: italic; }
 
 /* Install modal */
-.install-modal .modal { max-width: 780px; width: min(90vw, 780px); }
-.install-group { margin-bottom: 1.5rem; }
-.install-group h3 {
-  font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.75rem;
+.manage-models-modal { max-width: 960px; width: min(60vw, 960px); height: 80vh; max-height: 80vh; }
+.manage-models-modal .modal-body { overflow-y: auto; }
+.manage-models-modal .mm-tabs { margin: -1rem -1.5rem 1rem; }
+
+.mm-group { margin-bottom: 0.25rem; }
+
+.mm-engine-header {
   display: flex; align-items: center; gap: 0.5rem;
-  text-transform: capitalize;
+  padding: 0.6rem 0.75rem; cursor: pointer;
+  border-radius: 6px; transition: background 0.15s;
+  user-select: none;
 }
-.install-card {
+.mm-engine-header:hover { background: var(--badge-bg); }
+
+.mm-chevron {
+  font-size: 0.55rem; color: var(--muted);
+  transition: transform 0.2s; flex-shrink: 0;
+}
+.mm-chevron.open { transform: rotate(90deg); }
+
+.mm-engine-name { font-size: 0.8125rem; font-weight: 600; text-transform: capitalize; }
+
+.mm-engine-summary {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.62rem; color: var(--muted);
+  margin-left: auto; margin-right: 0.5rem;
+}
+.mm-summary-size { color: var(--accent); font-weight: 500; }
+
+.mm-engine-count {
+  font-size: 0.6rem; color: var(--muted);
+  background: var(--surface); padding: 0.1rem 0.4rem; border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.mm-models { padding: 0 0.75rem 0.75rem; }
+
+.mm-card {
   background: var(--bg); border: 1px solid var(--border);
-  border-radius: 8px; padding: 0.65rem 0.75rem; margin-bottom: 0.6rem;
+  border-radius: 8px; padding: 0.7rem 0.8rem; margin-bottom: 0.5rem;
 }
-.install-card:last-child { margin-bottom: 0; }
-.install-card-header {
-  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;
+.mm-card:last-child { margin-bottom: 0; }
+
+.mm-card-head {
+  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem;
 }
-.install-status { font-size: 0.75rem; flex-shrink: 0; }
-.install-status.available { color: var(--success); }
-.install-status.missing { color: var(--muted); }
-.install-name { font-size: 0.8125rem; font-weight: 500; }
-.install-size {
+.mm-status { font-size: 0.75rem; flex-shrink: 0; }
+.mm-status.available { color: var(--success); }
+.mm-status.missing { color: var(--muted); }
+.mm-name { font-size: 0.8125rem; font-weight: 500; }
+.mm-size {
   font-size: 0.6rem; color: var(--muted);
   background: var(--surface); padding: 0.08rem 0.35rem; border-radius: 3px;
   margin-left: auto; flex-shrink: 0; letter-spacing: 0.02em;
 }
-.install-cmd {
-  display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.3rem;
+
+.mm-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.4; margin-bottom: 0.25rem; }
+
+.mm-id { font-size: 0.65rem; color: var(--muted); margin-bottom: 0.3rem; }
+.mm-id code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--surface); padding: 0.05rem 0.3rem; border-radius: 3px;
+  font-size: 0.62rem;
 }
-.install-cmd code {
-  flex: 1; font-size: 0.7rem; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  background: var(--surface); padding: 0.3rem 0.5rem; border-radius: 4px;
+
+.mm-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.3rem; }
+.mm-tag {
+  font-size: 0.6rem; font-weight: 500;
+  background: var(--badge-bg); color: var(--accent);
+  border: 1px solid var(--badge-border);
+  padding: 0.08rem 0.4rem; border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.mm-langs { font-size: 0.65rem; color: var(--muted); margin-bottom: 0.2rem; }
+
+.mm-voices { display: flex; gap: 0.75rem; margin-bottom: 0.3rem; }
+.mm-voice-count { font-size: 0.65rem; color: var(--muted); }
+
+.mm-cmds { margin-top: 0.5rem; }
+.mm-cmds-remove { opacity: 0.8; }
+
+.mm-cmds-label {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: 0.65rem; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 0.3rem;
+}
+.mm-cmds-label svg { flex-shrink: 0; }
+
+.mm-cmd {
+  display: flex; align-items: center; gap: 0.35rem; margin-bottom: 0.25rem;
+}
+.mm-cmd code {
+  flex: 1; font-size: 0.68rem; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  background: var(--surface); padding: 0.25rem 0.4rem; border-radius: 4px;
   white-space: nowrap; overflow-x: auto; line-height: 1.4;
-  cursor: pointer; border: 1px solid transparent; transition: border-color 0.15s;
+  border: 1px solid transparent; transition: border-color 0.15s;
   scrollbar-width: none;
 }
-.install-cmd code::-webkit-scrollbar { display: none; }
-.install-cmd code:hover { border-color: var(--accent); }
-.install-copy {
+.mm-cmd code::-webkit-scrollbar { display: none; }
+.mm-cmd code:hover { border-color: var(--accent); }
+
+.mm-copy {
   background: none; border: 1px solid var(--border); color: var(--muted);
   border-radius: 4px; padding: 0.2rem 0.4rem; font-size: 0.65rem;
   cursor: pointer; flex-shrink: 0; transition: color 0.15s, border-color 0.15s;
   font-family: inherit;
 }
-.install-copy:hover { color: var(--accent); border-color: var(--accent); }
-.install-copy.copied { color: var(--success); border-color: var(--success); }
-.install-desc { font-size: 0.68rem; color: var(--muted); line-height: 1.4; }
-.install-extra-note { font-size: 0.68rem; color: var(--accent); font-weight: 500; margin-top: 0.5rem; }
+.mm-copy:hover { color: var(--accent); border-color: var(--accent); }
+
+.mm-actions { display: flex; gap: 0.35rem; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.mm-actions .btn { font-size: 0.7rem; padding: 0.3rem 0.6rem; }
+.mm-actions .btn-ghost { color: var(--muted); }
+
+.mm-na { font-size: 0.68rem; color: var(--muted); font-style: italic; }
 
 /* Transition helpers */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease; }

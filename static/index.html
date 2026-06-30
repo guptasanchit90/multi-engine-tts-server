@@ -13,7 +13,7 @@
     <h1>Sonus</h1>
     <span class="subtitle">Multi-engine text-to-speech</span>
     <a href="/api-docs" target="_blank" style="margin-left:auto;font-size:0.8rem;color:var(--accent);text-decoration:none;white-space:nowrap">API Docs</a>
-    <button class="btn btn-sm btn-ghost" style="margin-left:0.5rem" @click="$store.showInstall = true">Install Models</button>
+    <button class="btn btn-sm" style="margin-left:0.5rem" @click="$store.showManage = true">Manage Models</button>
     <button class="btn btn-sm btn-danger" style="margin-left:0.5rem" @click="$store.showResetConfirm = true">Reset</button>
   </div>
 
@@ -33,7 +33,7 @@
       <params-modal v-if="$store.showParams"></params-modal>
     </transition>
     <transition name="modal">
-      <install-modal v-if="$store.showInstall"></install-modal>
+      <manage-models-modal v-if="$store.showManage"></manage-models-modal>
     </transition>
     <transition name="modal">
       <batch-detail-modal v-if="$store.showBatchDetail"></batch-detail-modal>
@@ -669,38 +669,162 @@
   </div>
 </script>
 
-<script type="text/x-template" id="install-modal-template">
-  <div class="modal-overlay install-modal" @click.self="close">
-    <div class="modal">
+<script type="text/x-template" id="manage-models-modal-template">
+  <div class="modal-overlay" @click.self="close">
+    <div class="modal manage-models-modal">
       <div class="modal-header">
-        <h2>Install Models</h2>
+        <h2>Manage Models</h2>
       </div>
       <div class="modal-body">
-        <div v-if="!engineNames.length" class="empty">No install information available.</div>
-        <div v-for="eng in engineNames" :key="eng" class="install-group">
-          <h3>{{ eng }}</h3>
-          <div v-for="item in groups[eng]" :key="item.id" class="install-card">
-            <div class="install-card-header">
-              <span class="install-status" :class="item.available ? 'available' : 'missing'">
-                {{ item.available ? '\u2713' : '\u2717' }}
-              </span>
-              <span class="install-name">{{ item.name }}</span>
-              <span class="install-size" v-if="item.size">{{ item.size }}</span>
-            </div>
-            <div class="install-desc" v-if="item.description">{{ item.description }}</div>
-            <div class="install-cmd" v-for="cmd in (item.install ? item.install.commands : [])" :key="cmd">
-              <code @click="copyCmd(cmd)">{{ cmd }}</code>
-              <button class="install-copy" @click="copyCmd(cmd)">Copy</button>
-            </div>
-            <template v-if="item.install_s3_tokenizer">
-              <div class="install-extra-note">{{ item.install_s3_tokenizer.message }}</div>
-              <div class="install-cmd" v-for="cmd in (item.install_s3_tokenizer.commands || [])" :key="cmd">
-                <code @click="copyCmd(cmd)">{{ cmd }}</code>
-                <button class="install-copy" @click="copyCmd(cmd)">Copy</button>
-              </div>
-            </template>
-          </div>
+        <div class="modal-tabs mm-tabs">
+          <button class="modal-tab" :class="{ active: activeTab === 'tts' }" @click="switchTab('tts')">TTS</button>
+          <button class="modal-tab" :class="{ active: activeTab === 'stt' }" @click="switchTab('stt')">STT</button>
         </div>
+
+        <template v-if="activeTab === 'tts'">
+          <div v-if="!engineNames.length" class="empty">No TTS models available.</div>
+          <div v-for="eng in engineNames" :key="eng" class="mm-group">
+            <div class="mm-engine-header" @click="toggleEngine(eng)">
+              <span class="mm-chevron" :class="{ open: expanded[eng] }">&#9654;</span>
+              <span class="mm-engine-name">{{ eng }}</span>
+              <span class="mm-engine-summary" v-if="engineStats[eng]">
+                <span class="mm-summary-avail">{{ engineStats[eng].available }}/{{ engineStats[eng].total }} available</span>
+                <span class="mm-summary-size" v-if="engineStats[eng].totalGb">~{{ engineStats[eng].totalGb }} GB</span>
+              </span>
+              <span class="mm-engine-count">{{ groups[eng].length }} model(s)</span>
+            </div>
+            <div v-if="expanded[eng]" class="mm-models">
+              <div v-for="item in groups[eng]" :key="item.id" class="mm-card">
+                <div class="mm-card-head">
+                  <span class="mm-status" :class="item.available ? 'available' : 'missing'">
+                    {{ item.available ? '\u2713' : '\u2717' }}
+                  </span>
+                  <span class="mm-name">{{ item.name }}</span>
+                  <span class="mm-size" v-if="item.size">{{ item.size }}</span>
+                </div>
+                <div class="mm-desc" v-if="item.description">{{ item.description }}</div>
+                <div class="mm-id">ID: <code>{{ item.id }}</code> &middot; Model: <code>{{ item.model }}</code></div>
+
+                <div class="mm-tags" v-if="item.capabilities && item.capabilities.length">
+                  <span class="mm-tag" v-for="cap in item.capabilities" :key="cap">{{ cap }}</span>
+                </div>
+
+                <div class="mm-langs" v-if="item.languages && item.languages.length">
+                  Languages: {{ item.languages.join(', ') }}
+                </div>
+
+                <div class="mm-voices" v-if="item.voices">
+                  <span class="mm-voice-count" v-if="item.voices.built_in && item.voices.built_in.length">
+                    Built-in: {{ item.voices.built_in.length }}
+                  </span>
+                  <span class="mm-voice-count" v-if="item.voices.cloneable && item.voices.cloneable.length">
+                    Cloneable: {{ item.voices.cloneable.length }}
+                  </span>
+                </div>
+
+                <div v-if="item.install && item.install.commands && item.install.commands.length" class="mm-cmds">
+                  <div class="mm-cmds-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+                    Download
+                  </div>
+                  <div class="mm-cmd" v-for="cmd in item.install.commands" :key="cmd">
+                    <code>{{ cmd }}</code>
+                    <button class="mm-copy" @click="copyCmd(cmd)">Copy</button>
+                  </div>
+                </div>
+
+                <div v-if="derivedRemove(item)" class="mm-cmds mm-cmds-remove">
+                  <div class="mm-cmds-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Remove
+                  </div>
+                  <div class="mm-cmd" v-for="cmd in derivedRemove(item)" :key="cmd">
+                    <code>{{ cmd }}</code>
+                    <button class="mm-copy" @click="copyCmd(cmd)">Copy</button>
+                  </div>
+                </div>
+
+                <div class="mm-actions">
+                  <template v-if="item.install && item.install.commands && item.install.commands.length">
+                    <button v-if="!item.available" class="btn btn-sm" @click="confirmDownload(item)">Download</button>
+                    <button v-if="item.available" class="btn btn-sm btn-danger" @click="confirmRemove(item)">Remove</button>
+                    <button class="btn btn-sm btn-ghost" @click="copyAll(item)">Copy All</button>
+                  </template>
+                  <span v-else class="mm-na">No install info</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <template v-if="activeTab === 'stt'">
+          <div v-if="!sttEngineNames.length" class="empty">No STT models available.</div>
+          <div v-for="eng in sttEngineNames" :key="eng" class="mm-group">
+            <div class="mm-engine-header" @click="toggleSttEngine(eng)">
+              <span class="mm-chevron" :class="{ open: sttExpanded[eng] }">&#9654;</span>
+              <span class="mm-engine-name">{{ eng }}</span>
+              <span class="mm-engine-summary" v-if="sttEngineStats[eng]">
+                <span class="mm-summary-avail">{{ sttEngineStats[eng].available }}/{{ sttEngineStats[eng].total }} available</span>
+                <span class="mm-summary-size" v-if="sttEngineStats[eng].totalGb">~{{ sttEngineStats[eng].totalGb }} GB</span>
+              </span>
+              <span class="mm-engine-count">{{ sttGroups[eng].length }} model(s)</span>
+            </div>
+            <div v-if="sttExpanded[eng]" class="mm-models">
+              <div v-for="item in sttGroups[eng]" :key="item.id" class="mm-card">
+                <div class="mm-card-head">
+                  <span class="mm-status" :class="item.available ? 'available' : 'missing'">
+                    {{ item.available ? '\u2713' : '\u2717' }}
+                  </span>
+                  <span class="mm-name">{{ item.name }}</span>
+                  <span class="mm-size" v-if="item.size">{{ item.size }}</span>
+                </div>
+                <div class="mm-desc" v-if="item.description">{{ item.description }}</div>
+                <div class="mm-id">ID: <code>{{ item.id }}</code> &middot; Model: <code>{{ item.model }}</code></div>
+
+                <div class="mm-tags" v-if="item.capabilities && item.capabilities.length">
+                  <span class="mm-tag" v-for="cap in item.capabilities" :key="cap">{{ cap }}</span>
+                </div>
+
+                <div class="mm-langs" v-if="item.languages && item.languages.length">
+                  Languages: {{ item.languages.join(', ') }}
+                </div>
+
+                <div v-if="item.install && item.install.commands && item.install.commands.length" class="mm-cmds">
+                  <div class="mm-cmds-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+                    Download
+                  </div>
+                  <div class="mm-cmd" v-for="cmd in item.install.commands" :key="cmd">
+                    <code>{{ cmd }}</code>
+                    <button class="mm-copy" @click="copyCmd(cmd)">Copy</button>
+                  </div>
+                </div>
+
+                <div v-if="derivedRemove(item)" class="mm-cmds mm-cmds-remove">
+                  <div class="mm-cmds-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Remove
+                  </div>
+                  <div class="mm-cmd" v-for="cmd in derivedRemove(item)" :key="cmd">
+                    <code>{{ cmd }}</code>
+                    <button class="mm-copy" @click="copyCmd(cmd)">Copy</button>
+                  </div>
+                </div>
+
+                <div class="mm-actions">
+                  <template v-if="item.install && item.install.commands && item.install.commands.length">
+                    <button v-if="!item.available" class="btn btn-sm" @click="confirmDownload(item)">Download</button>
+                    <button v-if="item.available" class="btn btn-sm btn-danger" @click="confirmRemove(item)">Remove</button>
+                    <button class="btn btn-sm btn-ghost" @click="copyAll(item)">Copy All</button>
+                  </template>
+                  <span v-else class="mm-na">No install info</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <div v-if="status" class="status-msg" :class="statusClass">{{ status }}</div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" @click="close">Close</button>

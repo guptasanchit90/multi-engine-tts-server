@@ -34,7 +34,7 @@ const store = reactive({
   // Modals
   showAddVoice: false,
   showParams: false,
-  showInstall: false,
+  showManage: false,
   showResetConfirm: false,
   regenParams: null,
   modalOut: null,
