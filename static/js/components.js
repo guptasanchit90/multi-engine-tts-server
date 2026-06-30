@@ -1,6 +1,30 @@
 (function () {
 const comps = window.__comps = {};
 
+function buildVoiceForCapabilities(caps, store) {
+  if (caps.includes('voice_blend') && store.blendMode) {
+    const selections = store.blendSelections;
+    const keys = Object.keys(selections);
+    if (keys.length) {
+      const parts = keys.map(k => {
+        const w = selections[k];
+        return keys.length > 1 ? k + ':' + w.toFixed(2) : k;
+      });
+      return parts.join(',');
+    }
+  }
+  if (caps.includes('speaker') || caps.includes('voice_blend')) {
+    return store.form.speaker_name.trim();
+  }
+  if (caps.includes('voice_prompt')) {
+    return store.form.voice_description.trim();
+  }
+  if (caps.includes('voice_clone')) {
+    return store.form.sample_voice_file.trim();
+  }
+  return '';
+}
+
 // ── Audio Player ────────────────────────────────────────────────────────────
 comps['audio-player'] = {
   template: '#audio-player-template',
@@ -294,6 +318,19 @@ comps['generate-form'] = {
       if (!m || !m.voices) return { built_in: [], cloneable: [] };
       return m.voices;
     },
+    blendVoicesCount() {
+      return Object.keys(this.$store.blendSelections).length;
+    },
+    blendVoiceString() {
+      const selections = this.$store.blendSelections;
+      const keys = Object.keys(selections);
+      if (!keys.length) return '';
+      const parts = keys.map(k => {
+        const w = selections[k];
+        return keys.length > 1 ? k + ':' + w.toFixed(2) : k;
+      });
+      return parts.join(', ');
+    },
     modelEngine() {
       return (this.selectedModel && this.selectedModel.engine) || '';
     },
@@ -329,16 +366,8 @@ comps['generate-form'] = {
       if (!m || !t) return null;
       const caps = this.capabilities;
       const body = { model: m, input: t, speed: parseFloat(this.$store.form.speed) };
-      if (caps.includes('speaker') || caps.includes('voice_blend')) {
-        const v = this.$store.form.speaker_name.trim();
-        if (v) body.voice = v;
-      } else if (caps.includes('voice_prompt')) {
-        const v = this.$store.form.voice_description.trim();
-        if (v) body.voice = v;
-      } else if (caps.includes('voice_clone')) {
-        const v = this.$store.form.sample_voice_file.trim();
-        if (v) body.voice = v;
-      }
+      const voice = buildVoiceForCapabilities(caps, this.$store);
+      if (voice) body.voice = voice;
       body.temperature = parseFloat(this.$store.form.temperature);
       if (this.$store.form.seed) body.seed = parseInt(this.$store.form.seed, 10);
       body.add_pauses = this.$store.form.add_pauses;
@@ -438,6 +467,51 @@ comps['generate-form'] = {
       this.$store.form.speaker_name = '';
       this.$store.form.voice_description = '';
       this.$store.form.sample_voice_file = '';
+      this.$store.blendMode = false;
+      this.$store.blendSelections = {};
+    },
+    isBlendSelected(v) {
+      return this.$store.blendSelections[v] !== undefined;
+    },
+    getBlendWeight(v) {
+      const w = this.$store.blendSelections[v];
+      return w !== undefined ? w : 0.5;
+    },
+    _normalizeBlendWeights() {
+      const s = this.$store.blendSelections;
+      const keys = Object.keys(s);
+      if (keys.length < 2) return;
+      const total = keys.reduce((sum, k) => sum + s[k], 0);
+      if (!total || total <= 0) return;
+      const norm = {};
+      keys.forEach((k, i) => {
+        norm[k] = i < keys.length - 1
+          ? Math.round(s[k] / total * 100) / 100
+          : +(1 - keys.slice(0, -1).reduce((sum, k2) => sum + norm[k2], 0)).toFixed(2);
+      });
+      this.$store.blendSelections = norm;
+    },
+    toggleBlendVoice(v) {
+      const s = { ...this.$store.blendSelections };
+      if (s[v] !== undefined) {
+        delete s[v];
+      } else {
+        s[v] = 0.5;
+      }
+      this.$store.blendSelections = s;
+      this._normalizeBlendWeights();
+    },
+    setBlendWeight(v, w) {
+      if (isNaN(w)) w = 0.5;
+      w = Math.max(0, Math.min(1, w));
+      this.$store.blendSelections = { ...this.$store.blendSelections, [v]: w };
+      this._normalizeBlendWeights();
+    },
+    selectAllBlendVoices() {
+      const obj = {};
+      (this.modelVoices.built_in || []).forEach(v => { obj[v] = 0.5; });
+      this.$store.blendSelections = obj;
+      this._normalizeBlendWeights();
     },
     async onSubmit() {
       const m = this.$store.form.model;
@@ -450,17 +524,25 @@ comps['generate-form'] = {
       const caps = this.capabilities;
       const body = { model: m, input: t, speed: parseFloat(this.$store.form.speed) };
 
-      if (caps.includes('speaker') || caps.includes('voice_blend')) {
-        const v = this.$store.form.speaker_name.trim();
-        if (v) body.voice = v;
-      } else if (caps.includes('voice_prompt')) {
-        const v = this.$store.form.voice_description.trim();
-        if (!v) { this.genStatus = 'Voice description is required.'; this.genStatusClass = 'error'; return; }
-        body.voice = v;
-      } else if (caps.includes('voice_clone')) {
-        const v = this.$store.form.sample_voice_file.trim();
-        if (!v) { this.genStatus = 'A sample voice file is required.'; this.genStatusClass = 'error'; return; }
-        body.voice = v;
+      if (caps.includes('voice_blend') && this.$store.blendMode) {
+        const keys = Object.keys(this.$store.blendSelections);
+        if (!keys.length) {
+          this.genStatus = 'Please select at least one voice for blending.';
+          this.genStatusClass = 'error';
+          return;
+        }
+      }
+      const voice = buildVoiceForCapabilities(caps, this.$store);
+      if (voice) body.voice = voice;
+      if (caps.includes('voice_prompt') && !voice) {
+        this.genStatus = 'Voice description is required.';
+        this.genStatusClass = 'error';
+        return;
+      }
+      if (caps.includes('voice_clone') && !voice) {
+        this.genStatus = 'A sample voice file is required.';
+        this.genStatusClass = 'error';
+        return;
       }
 
       body.temperature = parseFloat(this.$store.form.temperature);
@@ -818,16 +900,8 @@ comps['curl-console'] = {
       const caps = model ? (model.capabilities || []) : [];
       const body = { model: m, input: t, speed: parseFloat(store.form.speed) };
 
-      if (caps.includes('speaker') || caps.includes('voice_blend')) {
-        const v = store.form.speaker_name.trim();
-        if (v) body.voice = v;
-      } else if (caps.includes('voice_prompt')) {
-        const v = store.form.voice_description.trim();
-        if (v) body.voice = v;
-      } else if (caps.includes('voice_clone')) {
-        const v = store.form.sample_voice_file.trim();
-        if (v) body.voice = v;
-      }
+      const voice = buildVoiceForCapabilities(caps, store);
+      if (voice) body.voice = voice;
 
       body.temperature = parseFloat(store.form.temperature);
       if (store.form.seed) body.seed = parseInt(store.form.seed, 10);
@@ -1192,9 +1266,29 @@ comps['params-modal'] = {
       if (p.voice) {
         const model = this.$store.models.find(m => m.id === (p.model || this.$store.form.model));
         const caps = model ? (model.capabilities || []) : [];
-        if (caps.includes('speaker') || caps.includes('voice_blend')) this.$store.form.speaker_name = p.voice;
-        else if (caps.includes('voice_prompt')) this.$store.form.voice_description = p.voice;
-        else if (caps.includes('voice_clone')) this.$store.form.sample_voice_file = p.voice;
+        if (caps.includes('voice_blend') && p.voice.includes(',')) {
+          this.$store.blendMode = true;
+          const obj = {};
+          p.voice.split(',').forEach(part => {
+            part = part.trim();
+            const idx = part.lastIndexOf(':');
+            if (idx > 0) {
+              const v = part.slice(0, idx).trim();
+              const w = parseFloat(part.slice(idx + 1)) || 0.5;
+              obj[v] = w;
+            } else {
+              obj[part] = 0.5;
+            }
+          });
+          this.$store.blendSelections = obj;
+          this.$store.form.speaker_name = '';
+        } else if (caps.includes('speaker') || caps.includes('voice_blend')) {
+          this.$store.form.speaker_name = p.voice;
+        } else if (caps.includes('voice_prompt')) {
+          this.$store.form.voice_description = p.voice;
+        } else if (caps.includes('voice_clone')) {
+          this.$store.form.sample_voice_file = p.voice;
+        }
       }
       this.close();
     },

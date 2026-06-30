@@ -39,6 +39,10 @@ const store = reactive({
   // Curl
   curlOpen: false,
 
+  // Blend mode (voice_blend models)
+  blendMode: false,
+  blendSelections: {},
+
   // Batch mode
   batchMode: false,
   batchTab: 'clone',

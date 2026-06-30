@@ -188,12 +188,44 @@
             <div class="voice-hint" v-if="modelLangs.length">Languages: {{ modelLangs.join(', ') }}</div>
           </div>
 
-          <div v-if="capabilities.includes('speaker') || capabilities.includes('voice_blend')" class="form-group voice-field">
+          <div v-if="capabilities.includes('speaker') && !capabilities.includes('voice_blend')" class="form-group voice-field">
             <label for="speaker_name">Speaker Name</label>
             <select id="speaker_name" v-model="$store.form.speaker_name">
               <option value="">— Select a voice —</option>
               <option v-for="v in modelVoices.built_in" :value="v">{{ v }}</option>
             </select>
+          </div>
+
+          <div v-if="capabilities.includes('voice_blend')" class="form-group voice-field">
+            <label>Voice</label>
+            <div class="mode-toggle blend-toggle">
+              <div class="pill-indicator" :class="{ right: $store.blendMode }"></div>
+              <button class="mode-btn" :class="{ active: !$store.blendMode }" @click="$store.blendMode = false" type="button">Single</button>
+              <button class="mode-btn" :class="{ active: $store.blendMode }" @click="$store.blendMode = true" type="button">Blend</button>
+            </div>
+            <select v-if="!$store.blendMode" v-model="$store.form.speaker_name">
+              <option value="">— Select a voice —</option>
+              <option v-for="v in modelVoices.built_in" :value="v">{{ v }}</option>
+            </select>
+            <template v-else>
+              <div class="voice-blend-summary" v-if="blendVoicesCount">
+                <code>{{ blendVoiceString }}</code>
+              </div>
+              <div class="model-grid blend-grid">
+                <div v-for="(v, i) in modelVoices.built_in" :key="v" class="model-card" :style="{ '--i': i }"
+                  :class="{ selected: isBlendSelected(v) }" @click="toggleBlendVoice(v)">
+                  <input type="checkbox" :checked="isBlendSelected(v)" @click.stop>
+                  <span class="model-name">{{ v }}</span>
+                  <input v-if="isBlendSelected(v)" type="number" class="blend-weight-input" min="0" max="1" step="0.01"
+                    :value="getBlendWeight(v)" @input.stop="setBlendWeight(v, parseFloat($event.target.value))" @click.stop>
+                </div>
+              </div>
+              <div class="model-select-actions" v-if="modelVoices.built_in.length">
+                <button type="button" @click="selectAllBlendVoices">Select all</button>
+                <button type="button" @click="$store.blendSelections = {}">Clear</button>
+              </div>
+              <div class="voice-hint" v-if="!blendVoicesCount">Select at least one voice to blend. Equal weights when omitted.</div>
+            </template>
           </div>
 
           <div v-if="capabilities.includes('voice_prompt')" class="form-group voice-field">

@@ -113,10 +113,11 @@ def _parse_voices(voice_input: str) -> tuple[list[str], list[float] | None]:
         if ":" in part:
             voice, weight = part.rsplit(":", 1)
             voices.append(voice.strip())
-            try:
-                weights.append(float(weight.strip()) / 100)
-            except ValueError:
-                weights.append(float(weight.strip()))
+            weight = weight.strip()
+            if "." in weight:
+                weights.append(float(weight))
+            else:
+                weights.append(float(weight) / 100)
         else:
             voices.append(part)
 
@@ -247,14 +248,19 @@ class KokoroEngine(BaseEngine):
             if len(voices) == 1:
                 voice_param = voices[0]
             else:
+                n = len(voices)
+                if weights:
+                    total = sum(weights)
+                    norms = [w / total for w in weights]
+                else:
+                    norms = [1.0 / n] * n
                 blended = None
                 for i, v in enumerate(voices):
                     style = kokoro.get_voice_style(v)
-                    w = weights[i] if weights else (1.0 / len(voices))
                     if blended is None:
-                        blended = style * w
+                        blended = style * norms[i]
                     else:
-                        blended = np.add(blended, style * w)
+                        blended = np.add(blended, style * norms[i])
                 voice_param = blended
             assert voice_param is not None
 

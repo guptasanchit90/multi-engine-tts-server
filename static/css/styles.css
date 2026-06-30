@@ -1054,3 +1054,35 @@ input[type="range"] {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* Blend toggle — reuse mode-toggle look but flush with label */
+.blend-toggle { margin-bottom: 0.5rem; }
+
+/* Blend voice grid — taller than batch model grid */
+.blend-grid { max-height: 280px; }
+
+/* Inline weight number input inside blend grid cards */
+.blend-weight-input {
+  width: 58px !important;
+  padding: 0.15rem 0.3rem !important;
+  font-size: 0.7rem !important;
+  text-align: center;
+  flex-shrink: 0;
+  border-radius: 4px !important;
+}
+
+/* Live blend string summary */
+.voice-blend-summary {
+  margin-bottom: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--badge-border);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  word-break: break-all;
+}
+.voice-blend-summary code {
+  color: var(--accent);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.68rem;
+}
