@@ -174,6 +174,21 @@ comps['voice-panel'] = {
     },
     cancelRename() { this.renaming = null; },
 
+    deleteVoice(name) {
+      if (!confirm('Delete voice "' + name + '"?')) return;
+      fetch('/voice/' + encodeURIComponent(name), { method: 'DELETE' })
+        .then(r => {
+          if (!r.ok) return;
+          this.$store.voiceDetails = this.$store.voiceDetails.filter(v => v.name !== name);
+          this.$store.models.forEach(m => {
+            if (m.voices && m.voices.cloneable) {
+              const idx = m.voices.cloneable.indexOf(name);
+              if (idx >= 0) m.voices.cloneable.splice(idx, 1);
+            }
+          });
+        });
+    },
+
     // ── Preset methods ──────────────────────────────────────────────────
 
     startPresetRename(name) {
@@ -810,6 +825,67 @@ comps['save-preset-modal'] = {
   },
 };
 
+comps['confirm-reset-modal'] = {
+  template: '#confirm-reset-modal-template',
+  data() {
+    return {
+      resetting: false,
+      status: '',
+      statusClass: '',
+      counts: {
+        outputs: this.$store.outputs.length,
+        voices: this.$store.voiceDetails.length,
+        presets: this.$store.presets.length,
+      },
+    };
+  },
+  methods: {
+    async reset() {
+      this.resetting = true;
+      this.status = '';
+      try {
+        await fetch('/outputs', { method: 'DELETE' });
+        const voicePromises = this.$store.voiceDetails.map(v =>
+          fetch('/voice/' + encodeURIComponent(v.name), { method: 'DELETE' }).catch(() => {})
+        );
+        const presetPromises = this.$store.presets.map(p =>
+          fetch('/presets/' + encodeURIComponent(p.name), { method: 'DELETE' }).catch(() => {})
+        );
+        await Promise.all([...voicePromises, ...presetPromises]);
+        this.$store.outputs = [];
+        this.$store.voiceDetails = [];
+        this.$store.voices = {};
+        this.$store.presets = [];
+        this.$store.filterState = { engine: '', model: '', time: '' };
+        Object.assign(this.$store.form, {
+          model: '',
+          text: '',
+          speaker_name: '',
+          voice_description: '',
+          sample_voice_file: '',
+          speed: 1.0,
+          temperature: 0,
+          seed: null,
+          add_pauses: true,
+          exaggeration: 0.1,
+          cfg_weight: 0.0,
+        });
+        try { localStorage.removeItem('sonus-form'); } catch {}
+        try { localStorage.removeItem('sonus-e2e'); } catch {}
+        this.status = 'Reset complete.';
+        this.statusClass = 'success';
+        setTimeout(() => this.close(), 1500);
+      } catch (err) {
+        this.status = 'Error: ' + err.message;
+        this.statusClass = 'error';
+      } finally {
+        this.resetting = false;
+      }
+    },
+    close() { this.$store.showResetConfirm = false; },
+  },
+};
+
 comps['curl-console'] = {
   template: '#curl-console-template',
   computed: {
@@ -886,6 +962,11 @@ comps['add-voice-modal'] = {
       recordName: '',
       recordStatus: '',
       recordStatusClass: '',
+      urlAddress: '',
+      urlName: '',
+      urlStatus: '',
+      urlStatusClass: '',
+      urlFetching: false,
       recording: false,
       _recorder: null,
       _chunks: [],
@@ -1074,12 +1155,52 @@ comps['add-voice-modal'] = {
         this.stageSaving = false;
       }
     },
+    async urlSubmit() {
+      const url = this.urlAddress.trim();
+      if (!url) {
+        this.urlStatus = 'Please enter a URL.';
+        this.urlStatusClass = 'error';
+        return;
+      }
+      if (!/^https?:\/\//i.test(url)) {
+        this.urlStatus = 'URL must start with http:// or https://';
+        this.urlStatusClass = 'error';
+        return;
+      }
+      this.urlFetching = true;
+      this.urlStatus = '';
+      try {
+        const resp = await fetch('/voice/stage/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, name: this.urlName.trim() || undefined }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          this.urlStatus = data.detail || 'Error ' + resp.status;
+          this.urlStatusClass = 'error';
+          return;
+        }
+        this.stagedFile = data;
+        this.urlAddress = '';
+        this.urlName = '';
+        this.urlStatus = '';
+      } catch (err) {
+        this.urlStatus = 'Network error: ' + err.message;
+        this.urlStatusClass = 'error';
+      } finally {
+        this.urlFetching = false;
+      }
+    },
     async discardStage() {
       if (this.stagedFile) {
         try { await fetch('/voice/stage/' + encodeURIComponent(this.stagedFile.name), { method: 'DELETE' }); } catch {}
       }
       this.stagedFile = null;
       this.stageTranscription = '';
+      this.urlAddress = '';
+      this.urlName = '';
+      this.urlStatus = '';
       this.activeTab = 'upload';
     },
     drawWave() {

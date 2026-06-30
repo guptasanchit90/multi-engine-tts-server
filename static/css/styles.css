@@ -1067,6 +1067,32 @@ input[type="range"] {
   height: 60px;
 }
 
+/* URL section */
+.url-section { padding: 1.25rem 0 0.5rem; }
+.url-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 0.7rem;
+  margin-bottom: 0.75rem;
+  transition: border-color 0.2s;
+}
+.url-input-wrap:focus-within { border-color: var(--accent); }
+.url-input-icon { flex-shrink: 0; opacity: 0.4; }
+.url-input-wrap input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0.65rem 0;
+  font-size: 0.8125rem;
+  color: var(--text);
+  outline: none;
+}
+.url-input-wrap input::placeholder { color: var(--muted); }
+.url-section .upload-name-row { margin-top: 0; }
+
 /* Staged card */
 .staged-card {
   background: var(--bg);
@@ -1216,6 +1242,28 @@ input[type="range"] {
   flex-shrink: 0;
   border-radius: 4px !important;
 }
+
+/* Confirm reset modal */
+.confirm-reset-modal .modal { max-width: 400px; }
+.reset-warning {
+  font-size: 0.875rem;
+  color: var(--danger);
+  font-weight: 500;
+  margin: 0 0 0.75rem;
+}
+.reset-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+.reset-list li {
+  font-size: 0.8125rem;
+  padding: 0.3rem 0;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.reset-list li:last-child { border-bottom: none; }
+.reset-list li strong { color: var(--muted); }
 
 /* Live blend string summary */
 .voice-blend-summary {

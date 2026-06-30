@@ -14,6 +14,7 @@
     <span class="subtitle">Multi-engine text-to-speech</span>
     <a href="/api-docs" target="_blank" style="margin-left:auto;font-size:0.8rem;color:var(--accent);text-decoration:none;white-space:nowrap">API Docs</a>
     <button class="btn btn-sm btn-ghost" style="margin-left:0.5rem" @click="$store.showInstall = true">Install Models</button>
+    <button class="btn btn-sm btn-danger" style="margin-left:0.5rem" @click="$store.showResetConfirm = true">Reset</button>
   </div>
 
   <div class="panels">
@@ -39,6 +40,9 @@
     </transition>
     <transition name="modal">
       <save-preset-modal v-if="$store.showSavePreset"></save-preset-modal>
+    </transition>
+    <transition name="modal">
+      <confirm-reset-modal v-if="$store.showResetConfirm"></confirm-reset-modal>
     </transition>
   </teleport>
 
@@ -500,6 +504,10 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
               Record Audio
             </button>
+            <button class="modal-tab" :class="{ active: activeTab === 'url' }" @click="switchTab('url')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              From URL
+            </button>
           </div>
 
           <div v-if="activeTab === 'upload'">
@@ -546,6 +554,18 @@
               </div>
             </div>
             <div class="status-msg" :class="recordStatusClass" v-if="recordStatus">{{ recordStatus }}</div>
+          </div>
+
+          <div v-if="activeTab === 'url'" class="url-section">
+            <div class="url-input-wrap">
+              <svg class="url-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <input type="url" ref="urlInput" v-model="urlAddress" placeholder="https://example.com/voice.mp3" @keyup.enter="urlSubmit">
+            </div>
+            <div class="upload-name-row">
+              <input type="text" v-model="urlName" placeholder="Voice name (optional, defaults to URL filename)">
+              <button type="button" class="btn" @click="urlSubmit" :disabled="urlFetching">{{ urlFetching ? 'Fetching...' : 'Fetch' }}</button>
+            </div>
+            <div class="status-msg" :class="urlStatusClass" v-if="urlStatus">{{ urlStatus }}</div>
           </div>
         </template>
 
@@ -748,6 +768,30 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" @click="close">Cancel</button>
         <button type="button" class="btn" @click="save" :disabled="saving">{{ saving ? 'Saving...' : 'Save Preset' }}</button>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script type="text/x-template" id="confirm-reset-modal-template">
+  <div class="modal-overlay" @click.self="close">
+    <div class="modal confirm-reset-modal">
+      <div class="modal-header">
+        <h2>Reset Sonus</h2>
+      </div>
+      <div class="modal-body">
+        <p class="reset-warning">This will permanently delete:</p>
+        <ul class="reset-list">
+          <li><strong>Generated outputs:</strong> {{ counts.outputs }} file(s)</li>
+          <li><strong>Custom voices:</strong> {{ counts.voices }} file(s)</li>
+          <li><strong>Presets:</strong> {{ counts.presets }} preset(s)</li>
+          <li><strong>Cached settings:</strong> UI preferences and form state</li>
+        </ul>
+        <div v-if="status" class="status-msg" :class="statusClass">{{ status }}</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" @click="close" :disabled="resetting">Cancel</button>
+        <button class="btn btn-danger" @click="reset" :disabled="resetting">{{ resetting ? 'Resetting...' : 'Reset Everything' }}</button>
       </div>
     </div>
   </div>

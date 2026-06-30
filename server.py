@@ -5,6 +5,9 @@ import shutil
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 import warnings
 
@@ -295,6 +298,11 @@ def health():
 MAX_UPLOAD_SIZE = 50 * 1024 * 1024
 
 
+class StageUrlRequest(BaseModel):
+    url: str
+    name: str | None = None
+
+
 @app.post("/voice", summary="Upload a voice file (any audio format)", tags=["voice-management"])
 async def upload_voice(file: UploadFile = File(...), name: str | None = Form(None)):
     content = await file.read()
@@ -406,6 +414,81 @@ async def stage_voice(file: UploadFile = File(...), name: str | None = Form(None
         "size": size,
         "created_at": created_at,
         "url": url,
+    }
+
+
+@app.post("/voice/stage/url", summary="Download a voice file from a URL and stage it", tags=["voice-management"])
+def stage_voice_url(req: StageUrlRequest):
+    url = req.url.strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="Invalid URL — must start with http:// or https://")
+
+    parsed = urllib.parse.urlparse(url)
+    url_filename = os.path.basename(parsed.path) or ""
+    stem = req.name.strip() if req.name and req.name.strip() else (url_filename.replace(".", "_") or "voice")
+    stem = "".join(c for c in stem.rsplit(".", 1)[0] if c.isalnum() or c in "-_.").rstrip(".") or "voice"
+    safe_name = stem + ".wav"
+
+    fd, tmp_path = tempfile.mkstemp(suffix=os.path.splitext(url_filename or ".dat")[1])
+    os.close(fd)
+
+    try:
+        resp = urllib.request.urlopen(url, timeout=30)
+        content_length = resp.headers.get("Content-Length")
+        if content_length and int(content_length) > MAX_UPLOAD_SIZE:
+            os.unlink(tmp_path)
+            raise HTTPException(status_code=422, detail=f"File exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)} MB limit")
+
+        downloaded = 0
+        with open(tmp_path, "wb") as f:
+            while True:
+                chunk = resp.read(8192)
+                if not chunk:
+                    break
+                downloaded += len(chunk)
+                if downloaded > MAX_UPLOAD_SIZE:
+                    os.unlink(tmp_path)
+                    raise HTTPException(status_code=422, detail=f"File exceeds {MAX_UPLOAD_SIZE // (1024 * 1024)} MB limit")
+                f.write(chunk)
+    except urllib.error.HTTPError as e:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise HTTPException(status_code=422, detail=f"HTTP {e.code} — {e.reason}")
+    except urllib.error.URLError as e:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise HTTPException(status_code=422, detail=f"URL error — {e.reason}")
+
+    os.makedirs(STAGE_DIR, exist_ok=True)
+    target = os.path.join(STAGE_DIR, safe_name)
+
+    with open(tmp_path, "rb") as f:
+        header = f.read(12)
+
+    is_wav = len(header) >= 12 and header[:4] == b"RIFF" and header[8:12] == b"WAVE"
+    if is_wav:
+        shutil.move(tmp_path, target)
+    else:
+        try:
+            if not convert_to_wav_24k(tmp_path, target):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Could not convert file to WAV — is it a valid audio file? ffmpeg must be installed.",
+                )
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    duration = get_audio_duration(target)
+    size = os.path.getsize(target)
+    created_at = os.path.getmtime(target)
+
+    return {
+        "name": safe_name,
+        "duration": round(duration, 1),
+        "size": size,
+        "created_at": created_at,
+        "url": f"/voice/stage/{safe_name}",
     }
 
 

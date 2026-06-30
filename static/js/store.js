@@ -35,6 +35,7 @@ const store = reactive({
   showAddVoice: false,
   showParams: false,
   showInstall: false,
+  showResetConfirm: false,
   regenParams: null,
   modalOut: null,
 
