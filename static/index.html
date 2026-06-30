@@ -421,9 +421,16 @@
                 <div class="form-group">
                   <label for="e2e_model">STT Model</label>
                   <select id="e2e_model" v-model="$store.e2eModel">
-                    <option v-for="m in $store.e2eModels" :key="m.id" :value="m.id" :disabled="!m.available">
-                      {{ m.name }}{{ m.available ? '' : ' [install]' }}
-                    </option>
+                    <optgroup label="MLX Whisper (Apple Silicon)">
+                      <option v-for="m in $store.e2eModels.filter(x => x.mlx_required)" :key="m.id" :value="m.id" :disabled="!m.available">
+                        {{ m.name }}{{ m.available ? '' : ' [install]' }}
+                      </option>
+                    </optgroup>
+                    <optgroup label="Faster Whisper (CPU / GPU)">
+                      <option v-for="m in $store.e2eModels.filter(x => !x.mlx_required)" :key="m.id" :value="m.id" :disabled="!m.available">
+                        {{ m.name }}{{ m.available ? '' : ' [install]' }}
+                      </option>
+                    </optgroup>
                   </select>
                 </div>
                 <div class="form-group">

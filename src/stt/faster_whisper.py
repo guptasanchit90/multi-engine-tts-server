@@ -110,6 +110,8 @@ class FasterWhisperEngine(BaseSTTEngine):
                 detail=f"STT model '{model}' not found. Known repos: {_REPOS}",
             )
 
+        from faster_whisper import WhisperModel
+
         whisper = WhisperModel(
             model_path_or_repo,
             device="auto",

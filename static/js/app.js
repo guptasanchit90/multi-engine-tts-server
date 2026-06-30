@@ -17,7 +17,12 @@ const app = createApp({
         applyVoiceData(this.$store, voiceData.data || []);
         this.$store.e2eModels = sttData.data || [];
         const avail = (this.$store.e2eModels || []).filter(m => m.available);
-        if (avail.length) this.$store.e2eModel = avail[0].id;
+        const mlxModel = avail.find(m => m.mlx_required);
+        if (mlxModel) {
+          this.$store.e2eModel = mlxModel.id;
+        } else if (avail.length) {
+          this.$store.e2eModel = avail[0].id;
+        }
       } catch {
         console.warn('Sonus: failed to load models/voices');
       }

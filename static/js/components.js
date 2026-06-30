@@ -558,6 +558,9 @@ comps['generate-form'] = {
     },
     switchBatchTab(key) {
       this.$store.batchTab = key;
+      this.$store.selectedBatchModels = [];
+      this.$store.multivoiceModel = '';
+      this.$store.multivoiceSelectedVoices = [];
     },
     capsLabel(m) {
       if (!m.capabilities || !m.capabilities.length) return '';
@@ -763,6 +766,162 @@ comps['generate-form'] = {
       }
       const wer = a.length ? dp[a.length][b.length] / a.length : 0;
       return { wer: Math.min(wer, 1), similarity: Math.max(0, 1 - wer) };
+    },
+
+    async batchSubmit() {
+      const text = this.$store.form.text.trim();
+      if (!text) {
+        this.genStatus = 'Please enter text.';
+        this.genStatusClass = 'error';
+        return;
+      }
+
+      const tab = this.$store.batchTab;
+      const batchId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+      let items = [];
+      if (tab === 'multivoice') {
+        items = this.$store.multivoiceSelectedVoices.map(v => ({
+          id: v,
+          label: v,
+          modelId: this.$store.multivoiceModel,
+          voice: v,
+        }));
+      } else {
+        const models = this.$store.selectedBatchModels;
+        if (!models.length) {
+          this.genStatus = 'Please select at least one model.';
+          this.genStatusClass = 'error';
+          return;
+        }
+        const voiceField = tab === 'clone' ? this.$store.form.sample_voice_file.trim() : this.$store.form.voice_description.trim();
+        if (!voiceField) {
+          this.genStatus = tab === 'clone' ? 'Please select a voice file.' : 'Please enter a voice description.';
+          this.genStatusClass = 'error';
+          return;
+        }
+        items = models.map(id => {
+          const m = this.$store.models.find(x => x.id === id);
+          return { id, label: m ? m.name : id, modelId: id, voice: voiceField };
+        });
+      }
+
+      const total = items.length;
+      this.$store.loading = true;
+      this.$store.batchProgress = { current: 0, total, modelName: '' };
+      this.$store.batchAbort = false;
+      this.$store.batchSummary = null;
+
+      let succeeded = 0;
+      let failed = 0;
+      const details = [];
+
+      for (let i = 0; i < total; i++) {
+        if (this.$store.batchAbort) {
+          details.push('Cancelled after ' + i + ' of ' + total);
+          break;
+        }
+        const item = items[i];
+        this.$store.batchProgress = { current: i + 1, total, modelName: item.label };
+
+        const body = {
+          model: item.modelId,
+          input: text,
+          voice: item.voice,
+          speed: parseFloat(this.$store.form.speed),
+          temperature: parseFloat(this.$store.form.temperature),
+          add_pauses: this.$store.form.add_pauses,
+        };
+        if (this.$store.form.seed) body.seed = parseInt(this.$store.form.seed, 10);
+
+        try {
+          const resp = await fetch('/v1/audio/speech', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Save-Output': 'true',
+              'X-Batch-Id': batchId,
+              'X-Batch-Seq': String(i),
+            },
+            body: JSON.stringify(body),
+          });
+          if (resp.ok) {
+            succeeded++;
+            details.push(item.label + ': done');
+          } else {
+            const err = await resp.json().catch(() => ({ detail: 'HTTP ' + resp.status }));
+            failed++;
+            details.push(item.label + ': ' + (err.detail || 'error'));
+          }
+        } catch (err) {
+          failed++;
+          details.push(item.label + ': network error');
+        }
+
+        if (i < total - 1 && !this.$store.batchAbort) {
+          await new Promise(r => setTimeout(r, this.$store.batchGapMs));
+        }
+      }
+
+      this.$store.batchProgress = null;
+      this.$store.loading = false;
+
+      try {
+        const data = await fetch('/outputs/detail').then(r => r.json());
+        this.$store.outputs = data;
+      } catch {}
+
+      if (this.$store.batchAbort) {
+        this.$store.batchSummary = { type: 'warning', message: 'Cancelled. ' + succeeded + ' generated, ' + failed + ' failed.', detail: details.join('\n') };
+      } else {
+        const totalDone = succeeded + failed;
+        const msg = 'Generated ' + succeeded + ' of ' + totalDone + (totalDone === 1 ? ' item' : ' items');
+        const type = failed === 0 ? 'success' : 'warning';
+        const extra = failed ? [failed + ' failed'] : [];
+        this.$store.batchSummary = {
+          type,
+          message: msg + (extra.length ? ' (' + extra.join(', ') + ')' : ''),
+          detail: details.join('\n'),
+        };
+      }
+
+      setTimeout(() => { this.$store.batchSummary = null; }, 15000);
+    },
+
+    cancelBatch() {
+      this.$store.batchAbort = true;
+    },
+
+    toggleBatchModel(id) {
+      const idx = this.$store.selectedBatchModels.indexOf(id);
+      if (idx >= 0) {
+        this.$store.selectedBatchModels.splice(idx, 1);
+      } else {
+        this.$store.selectedBatchModels.push(id);
+      }
+    },
+
+    selectAllVisible() {
+      const tab = this.$store.batchTab;
+      const models = tab === 'clone' ? this.cloneModels : this.promptModels;
+      this.$store.selectedBatchModels.splice(0, this.$store.selectedBatchModels.length, ...models.map(m => m.id));
+    },
+
+    clearSelected() {
+      this.$store.selectedBatchModels = [];
+    },
+
+    toggleMultivoiceVoice(name) {
+      const idx = this.$store.multivoiceSelectedVoices.indexOf(name);
+      if (idx >= 0) {
+        this.$store.multivoiceSelectedVoices.splice(idx, 1);
+      } else {
+        this.$store.multivoiceSelectedVoices.push(name);
+      }
+    },
+
+    selectAllVoices() {
+      this.$store.multivoiceSelectedVoices.splice(0, this.$store.multivoiceSelectedVoices.length, ...this.multivoiceVoices);
     },
   },
 };
@@ -1121,7 +1280,8 @@ comps['add-voice-modal'] = {
       }
     },
     async transcribeStage() {
-      const sttModel = (this.$store.e2eModels || []).find(m => m.available && m.id);
+      const e2eModels = this.$store.e2eModels || [];
+      const sttModel = e2eModels.find(m => m.available && m.mlx_required) || e2eModels.find(m => m.available && m.id);
       if (!sttModel) {
         this.stageTranscription = 'No STT model available. Install a Whisper model first.';
         return;
