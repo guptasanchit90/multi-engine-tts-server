@@ -35,6 +35,7 @@ from src.utils import (
 
 import src.engines  # noqa: F401
 import src.stt  # noqa: F401
+from src.presets import presets_router
 
 TTS_ENGINES = discover_tts()
 STT_ENGINES = discover_stt()
@@ -84,8 +85,14 @@ app = FastAPI(
             "name": "speech-to-text",
             "description": "Transcribe audio and list available STT models.",
         },
+        {
+            "name": "presets",
+            "description": "Save, list, rename, and delete voice configuration presets.",
+        },
     ],
 )
+
+app.include_router(presets_router)
 
 # ---------------------------------------------------------------------------
 # Model manifest — built dynamically from each engine's list_models()

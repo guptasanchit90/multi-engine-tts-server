@@ -37,6 +37,9 @@
     <transition name="modal">
       <batch-detail-modal v-if="$store.showBatchDetail"></batch-detail-modal>
     </transition>
+    <transition name="modal">
+      <save-preset-modal v-if="$store.showSavePreset"></save-preset-modal>
+    </transition>
   </teleport>
 
 </div>
@@ -93,6 +96,33 @@
           </div>
         </template>
         <audio-player v-else :item="v" show-rename show-delete @rename="startRename" @delete="deleteVoice"></audio-player>
+      </div>
+    </div>
+    <div class="preset-section">
+      <div class="preset-header">
+        <span>Presets</span>
+      </div>
+      <div class="preset-body">
+        <div v-if="!$store.presets.length" class="empty" style="padding:0.5rem 0;font-size:0.7rem">No presets saved yet.</div>
+        <div v-for="p in $store.presets" :key="p.name" class="item" :title="p.preview">
+          <template v-if="presetRenaming && presetRenaming.original === p.name">
+            <div class="player-main">
+              <input class="preset-name-edit" v-model="presetRenaming.current" @keydown.enter="submitPresetRename" @keydown.escape="cancelPresetRename" @blur="submitPresetRename" @click.stop>
+            </div>
+          </template>
+          <template v-else>
+            <div class="player-main">
+              <div class="player-info preset-clickable" @click="applyPreset(p)">
+                <div class="player-title">{{ p.name }}</div>
+                <div class="player-meta">{{ p.preview }}</div>
+              </div>
+              <div class="player-actions">
+                <button class="icon-btn" @click="startPresetRename(p.name)" title="Rename">&#9998;</button>
+                <button class="icon-btn danger" @click="deletePreset(p.name)" title="Delete">&times;</button>
+              </div>
+            </div>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -401,10 +431,16 @@
           </div>
         </div>
 
-        <button type="submit" class="btn" :class="[{ loading: $store.loading }, btnState]" :disabled="$store.loading || batchSubmitDisabled">
-          <span class="spinner"></span>
-          {{ batchSubmitLabel }}
-        </button>
+        <div class="generate-row">
+          <button type="button" class="btn btn-ghost btn-sm save-preset-btn" @click="$store.showSavePreset = true" :disabled="$store.loading" title="Save current config as a preset">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save as Preset
+          </button>
+          <button type="submit" class="btn" :class="[{ loading: $store.loading }, btnState]" :disabled="$store.loading || batchSubmitDisabled">
+            <span class="spinner"></span>
+            {{ batchSubmitLabel }}
+          </button>
+        </div>
 
         <div class="batch-progress" v-if="$store.batchProgress">
           <div class="progress-bar">
@@ -687,6 +723,31 @@
 
       <div class="bd-footer">
         <button class="btn btn-ghost" @click="close">Close</button>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script type="text/x-template" id="save-preset-modal-template">
+  <div class="modal-overlay" @click.self="close">
+    <div class="modal save-preset-modal">
+      <div class="modal-header">
+        <h2>Save Preset</h2>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="save-preset-name">Preset name</label>
+          <input type="text" id="save-preset-name" v-model="presetName" placeholder="Leave blank for auto-generated name" @keydown.enter="save" ref="nameInput">
+        </div>
+        <div class="preset-save-preview">
+          <div class="preset-save-preview-label">Will save:</div>
+          <div class="preset-save-preview-text">{{ preview }}</div>
+        </div>
+        <div class="status-msg" :class="statusClass" v-if="status">{{ status }}</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" @click="close">Cancel</button>
+        <button type="button" class="btn" @click="save" :disabled="saving">{{ saving ? 'Saving...' : 'Save Preset' }}</button>
       </div>
     </div>
   </div>

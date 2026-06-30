@@ -76,6 +76,12 @@ const store = reactive({
   // Advanced section
   showAdvanced: false,
 
+  // Presets
+  presets: [],
+  showSavePreset: false,
+  savePresetStatus: '',
+  savePresetStatusClass: '',
+
   // Upload / record status
   uploadStatus: '',
   uploadStatusClass: '',

@@ -132,10 +132,16 @@ comps['audio-player'] = {
 comps['voice-panel'] = {
   template: '#voice-panel-template',
   data() {
-    return { renaming: null };
+    return { renaming: null, presetRenaming: null };
   },
   computed: {
     items() { return this.$store.voiceDetails; },
+  },
+  mounted() {
+    fetch('/presets')
+      .then(r => r.json())
+      .then(data => { this.$store.presets = data; })
+      .catch(() => {});
   },
   methods: {
     startRename(name) {
@@ -155,7 +161,6 @@ comps['voice-panel'] = {
         .then(data => {
           const v = this.$store.voiceDetails.find(v => v.name === r.original);
           if (v) { v.name = data.name; v.url = data.url; }
-          // Update cloneable lists
           const oldName = r.original;
           this.$store.models.forEach(m => {
             if (m.voices && m.voices.cloneable) {
@@ -168,27 +173,72 @@ comps['voice-panel'] = {
         .catch(() => { this.renaming = null; });
     },
     cancelRename() { this.renaming = null; },
-    deleteVoice(name) {
-      if (!confirm('Delete "' + name + '"?')) return;
-      fetch('/voice/' + encodeURIComponent(name), { method: 'DELETE' })
-        .then(r => {
-          if (!r.ok) return;
-          if (this.$store.currentName === name) {
-            if (this.$store.currentAudio) this.$store.currentAudio.pause();
-            this.$store.currentAudio = null;
-            this.$store.currentName = '';
-          }
-          this.$store.voiceDetails = this.$store.voiceDetails.filter(v => v.name !== name);
-          Object.keys(this.$store.voices).forEach(eng => {
-            const cats = this.$store.voices[eng];
-            Object.keys(cats).forEach(cat => {
-              if (Array.isArray(cats[cat])) cats[cat] = cats[cat].filter(v => v !== name);
-            });
-          });
-          this.$store.models.forEach(m => {
-            if (m.voices && m.voices.cloneable) m.voices.cloneable = m.voices.cloneable.filter(v => v !== name);
-          });
+
+    // ── Preset methods ──────────────────────────────────────────────────
+
+    startPresetRename(name) {
+      this.presetRenaming = { original: name, current: name };
+      this.$nextTick(() => {
+        const el = this.$el.querySelector('.preset-name-edit');
+        if (el) { el.focus(); el.select(); }
+      });
+    },
+    submitPresetRename() {
+      const r = this.presetRenaming;
+      if (!r) return;
+      const val = r.current.trim();
+      if (!val || val === r.original) { this.presetRenaming = null; return; }
+      fetch('/presets/' + encodeURIComponent(r.original), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_name: val }),
+      })
+        .then(r2 => r2.json())
+        .then(data => {
+          if (data.presets) this.$store.presets = data.presets;
+          this.presetRenaming = null;
+        })
+        .catch(() => { this.presetRenaming = null; });
+    },
+    cancelPresetRename() { this.presetRenaming = null; },
+
+    deletePreset(name) {
+      if (!confirm('Delete preset "' + name + '"?')) return;
+      fetch('/presets/' + encodeURIComponent(name), { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.presets) this.$store.presets = data.presets;
         });
+    },
+
+    applyPreset(preset) {
+      fetch('/presets/' + encodeURIComponent(preset.name))
+        .then(r => r.json())
+        .then(data => {
+          const cfg = data.config || {};
+          const f = this.$store.form;
+          if (cfg.model) f.model = cfg.model;
+          if (cfg.speaker_name) f.speaker_name = cfg.speaker_name;
+          if (cfg.voice_description != null) f.voice_description = cfg.voice_description;
+          if (cfg.speed != null) f.speed = Math.min(4, Math.max(0.25, parseFloat(cfg.speed)));
+          if (cfg.temperature != null) f.temperature = parseFloat(cfg.temperature);
+          if (cfg.seed !== undefined) f.seed = cfg.seed;
+          if (cfg.add_pauses !== undefined) f.add_pauses = !!cfg.add_pauses;
+          if (cfg.exaggeration != null) f.exaggeration = parseFloat(cfg.exaggeration);
+          if (cfg.cfg_weight != null) f.cfg_weight = parseFloat(cfg.cfg_weight);
+          if (cfg.blendMode !== undefined) this.$store.blendMode = !!cfg.blendMode;
+          if (cfg.blendSelections) this.$store.blendSelections = { ...cfg.blendSelections };
+          if (cfg.e2eEnabled !== undefined) this.$store.e2eEnabled = !!cfg.e2eEnabled;
+          if (cfg.e2eModel) this.$store.e2eModel = cfg.e2eModel;
+          if (cfg.e2eLanguage != null) this.$store.e2eLanguage = cfg.e2eLanguage;
+        })
+        .catch(() => {});
+    },
+
+    openSavePreset() {
+      this.$store.showSavePreset = true;
+      this.$store.savePresetStatus = '';
+      this.$store.savePresetStatusClass = '';
     },
   },
 };
@@ -645,7 +695,6 @@ comps['generate-form'] = {
     copyCurl() {
       if (!this.curlCommand) return;
       navigator.clipboard.writeText(this.curlCommand).then(() => {
-        // Flash feedback
       }).catch(() => {
         const ta = document.createElement('textarea');
         ta.value = this.curlCommand;
@@ -655,267 +704,112 @@ comps['generate-form'] = {
         document.body.removeChild(ta);
       });
     },
-
-    // Batch mode methods
-    async batchSubmit() {
-      const text = this.$store.form.text.trim();
-      if (!text) {
-        this.genStatus = 'Please enter text.';
-        this.genStatusClass = 'error';
-        return;
-      }
-
-      const tab = this.$store.batchTab;
-      const batchId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-
-      let items = [];
-      if (tab === 'multivoice') {
-        items = this.$store.multivoiceSelectedVoices.map(v => ({
-          id: v,
-          label: v,
-          modelId: this.$store.multivoiceModel,
-          voice: v,
-        }));
-      } else {
-        const models = this.$store.selectedBatchModels;
-        if (!models.length) {
-          this.genStatus = 'Please select at least one model.';
-          this.genStatusClass = 'error';
-          return;
-        }
-        const voiceField = tab === 'clone' ? this.$store.form.sample_voice_file.trim() : this.$store.form.voice_description.trim();
-        if (!voiceField) {
-          this.genStatus = tab === 'clone' ? 'Please select a voice file.' : 'Please enter a voice description.';
-          this.genStatusClass = 'error';
-          return;
-        }
-        items = models.map(id => {
-          const m = this.$store.models.find(x => x.id === id);
-          return { id, label: m ? m.name : id, modelId: id, voice: voiceField };
-        });
-      }
-
-      const total = items.length;
-      this.$store.loading = true;
-      this.$store.batchProgress = { current: 0, total, modelName: '' };
-      this.$store.batchAbort = false;
-      this.$store.batchSummary = null;
-
-      let succeeded = 0;
-      let failed = 0;
-      const details = [];
-
-      for (let i = 0; i < total; i++) {
-        if (this.$store.batchAbort) {
-          details.push('Cancelled after ' + i + ' of ' + total);
-          break;
-        }
-        const item = items[i];
-        this.$store.batchProgress = { current: i + 1, total, modelName: item.label };
-
-        const body = {
-          model: item.modelId,
-          input: text,
-          voice: item.voice,
-          speed: parseFloat(this.$store.form.speed),
-          temperature: parseFloat(this.$store.form.temperature),
-          add_pauses: this.$store.form.add_pauses,
-        };
-        if (this.$store.form.seed) body.seed = parseInt(this.$store.form.seed, 10);
-
-        try {
-          const resp = await fetch('/v1/audio/speech', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Save-Output': 'true',
-              'X-Batch-Id': batchId,
-              'X-Batch-Seq': String(i),
-            },
-            body: JSON.stringify(body),
-          });
-          if (resp.ok) {
-            succeeded++;
-            details.push(item.label + ': done');
-          } else {
-            const err = await resp.json().catch(() => ({ detail: 'HTTP ' + resp.status }));
-            failed++;
-            details.push(item.label + ': ' + (err.detail || 'error'));
-          }
-        } catch (err) {
-          failed++;
-          details.push(item.label + ': network error');
-        }
-
-        if (i < total - 1 && !this.$store.batchAbort) {
-          await new Promise(r => setTimeout(r, this.$store.batchGapMs));
+    _transcribeOne(url, model, lang) {
+      return fetch('/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, file_url: url, language: lang, response_format: 'json' }),
+      }).then(r => r.json());
+    },
+    _wer(ref, hyp) {
+      const a = (ref || '').toLowerCase().split(/\s+/).filter(Boolean);
+      const b = (hyp || '').toLowerCase().split(/\s+/).filter(Boolean);
+      if (!a.length && !b.length) return { wer: 0, similarity: 1 };
+      if (!a.length) return { wer: 1, similarity: 0 };
+      const dp = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+      for (let i = 0; i <= a.length; i++) dp[i][0] = i;
+      for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,
+            dp[i][j - 1] + 1,
+            dp[i - 1][j - 1] + (a[i - 1] !== b[j - 1] ? 1 : 0),
+          );
         }
       }
-
-      this.$store.batchProgress = null;
-      this.genStatus = 'Finalizing...';
-      this.genStatusClass = 'info';
-
-      try {
-        const data = await fetch('/outputs/detail').then(r => r.json());
-        this.$store.outputs = data;
-      } catch {}
-
-      // E2E validation: transcribe all outputs at the end
-      let e2eDone = 0;
-      let e2eFailed = 0;
-      if (this.$store.e2eEnabled && !this.$store.batchAbort && succeeded > 0) {
-        const sttModel = this.$store.e2eModel;
-        const e2eLang = this.$store.e2eLanguage || undefined;
-        this.genStatus = 'Transcribing ' + succeeded + ' output' + (succeeded > 1 ? 's' : '') + '...';
-        this.genStatusClass = 'info';
-
-        for (const out of this.$store.outputs) {
-          if (out.params && out.params.e2e) continue; // already has results
-          const origText = out.params && out.params.input;
-          if (!origText) continue;
-          try {
-            const transResult = await this._transcribeOne(out.url, sttModel, e2eLang);
-            const similarity = this._wer(origText, transResult.text);
-            const e2eData = {
-              e2e: {
-                stt_model: sttModel,
-                transcription: transResult.text,
-                detected_language: transResult.detected_language || '',
-                wer: similarity.wer,
-                similarity: similarity.similarity,
-              },
-            };
-            fetch('/output/' + encodeURIComponent(out.name) + '/meta', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(e2eData),
-            }).catch(() => {});
-            if (out.params) Object.assign(out.params, e2eData);
-            e2eDone++;
-          } catch (err) {
-            e2eFailed++;
-          }
-        }
-      }
-
-      this.$store.loading = false;
-
-      const e2eParts = [];
-      if (e2eDone) e2eParts.push(e2eDone + ' validated');
-      if (e2eFailed) e2eParts.push(e2eFailed + ' stt errors');
-
-      if (!this.$store.batchAbort && failed === 0 && e2eFailed === 0) {
-        this.btnState = 'btn-success';
-        setTimeout(() => { this.btnState = ''; }, 1200);
-      } else if (!this.$store.batchAbort && (failed > 0 || e2eFailed > 0)) {
-        this.btnState = 'btn-error';
-        setTimeout(() => { this.btnState = ''; }, 600);
-      }
-
-      if (this.$store.batchAbort) {
-        this.$store.batchSummary = { type: 'warning', message: 'Cancelled. ' + succeeded + ' generated, ' + failed + ' failed.' + (e2eParts.length ? ' ' + e2eParts.join(', ') : ''), detail: details.join('\n') };
-      } else {
-        const totalDone = succeeded + failed;
-        const msg = 'Generated ' + succeeded + ' of ' + totalDone + (totalDone === 1 ? ' item' : ' items');
-        const type = failed === 0 && e2eFailed === 0 ? 'success' : 'warning';
-        const extra = [];
-        if (failed) extra.push(failed + ' failed');
-        if (e2eFailed) extra.push(e2eFailed + ' stt errors');
-        this.$store.batchSummary = {
-          type,
-          message: msg + (extra.length ? ' (' + extra.join(', ') + ')' : '') + (e2eParts.length ? ' \u00B7 ' + e2eParts.join(', ') : ''),
-          detail: details.join('\n'),
-        };
-      }
-
-      setTimeout(() => { this.$store.batchSummary = null; }, 15000);
-    },
-
-    cancelBatch() {
-      this.$store.batchAbort = true;
-    },
-
-    toggleBatchModel(id) {
-      const idx = this.$store.selectedBatchModels.indexOf(id);
-      if (idx >= 0) {
-        this.$store.selectedBatchModels.splice(idx, 1);
-      } else {
-        this.$store.selectedBatchModels.push(id);
-      }
-    },
-
-    selectAllVisible() {
-      const tab = this.$store.batchTab;
-      const models = tab === 'clone' ? this.cloneModels : this.promptModels;
-      this.$store.selectedBatchModels.splice(0, this.$store.selectedBatchModels.length, ...models.map(m => m.id));
-    },
-
-    clearSelected() {
-      this.$store.selectedBatchModels = [];
-    },
-
-    switchBatchTab(tab) {
-      this.$store.batchTab = tab;
-      this.$store.selectedBatchModels = [];
-      this.$store.multivoiceModel = '';
-      this.$store.multivoiceSelectedVoices = [];
-    },
-
-    toggleMultivoiceVoice(name) {
-      const idx = this.$store.multivoiceSelectedVoices.indexOf(name);
-      if (idx >= 0) {
-        this.$store.multivoiceSelectedVoices.splice(idx, 1);
-      } else {
-        this.$store.multivoiceSelectedVoices.push(name);
-      }
-    },
-
-    selectAllVoices() {
-      this.$store.multivoiceSelectedVoices.splice(0, this.$store.multivoiceSelectedVoices.length, ...this.multivoiceVoices);
-    },
-
-    async _transcribeOne(audioUrl, sttModel, language) {
-      const resp = await fetch(audioUrl);
-      const blob = await resp.blob();
-      const fd = new FormData();
-      fd.append('file', blob, 'audio.wav');
-      fd.append('model', sttModel);
-      if (language) fd.append('language', language);
-      fd.append('response_format', 'json');
-      const sttResp = await fetch('/v1/audio/transcriptions', { method: 'POST', body: fd });
-      if (!sttResp.ok) {
-        const err = await sttResp.json().catch(() => ({ detail: 'HTTP ' + sttResp.status }));
-        throw new Error(err.detail || 'Transcription failed');
-      }
-      return await sttResp.json();
-    },
-
-    _wer(original, transcribed) {
-      const norm = s => s.toLowerCase().replace(/[^\w\s']/g, '').replace(/\s+/g, ' ').trim();
-      const origWords = norm(original).split(/\s+/).filter(Boolean);
-      const transWords = norm(transcribed).split(/\s+/).filter(Boolean);
-      if (!origWords.length) return { wer: 0, similarity: transWords.length ? 0 : 1 };
-
-      const m = origWords.length;
-      const n = transWords.length;
-      const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-      for (let i = 0; i <= m; i++) dp[i][0] = i;
-      for (let j = 0; j <= n; j++) dp[0][j] = j;
-      for (let i = 1; i <= m; i++) {
-        for (let j = 1; j <= n; j++) {
-          const cost = origWords[i - 1] === transWords[j - 1] ? 0 : 1;
-          dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
-        }
-      }
-      const wer = dp[m][n] / Math.max(m, n, 1);
-      const similarity = Math.max(0, 1 - wer);
-      return { wer, similarity };
+      const wer = a.length ? dp[a.length][b.length] / a.length : 0;
+      return { wer: Math.min(wer, 1), similarity: Math.max(0, 1 - wer) };
     },
   },
 };
 
-// ── Curl Console ─────────────────────────────────────────────────────────────
+// ── Save Preset Modal ────────────────────────────────────────────────────
+comps['save-preset-modal'] = {
+  template: '#save-preset-modal-template',
+  data() {
+    return { presetName: '', saving: false };
+  },
+  computed: {
+    status() { return this.$store.savePresetStatus; },
+    statusClass() { return this.$store.savePresetStatusClass; },
+    preview() {
+      const s = this.$store;
+      const parts = [];
+      const f = s.form;
+      if (f.model) parts.push('Model: ' + f.model);
+      if (s.blendMode && Object.keys(s.blendSelections).length) {
+        const sel = s.blendSelections;
+        parts.push('Blend: ' + Object.keys(sel).map(k => k + ':' + sel[k].toFixed(2)).join(', '));
+      } else if (f.speaker_name) {
+        parts.push('Voice: ' + f.speaker_name);
+      }
+      if (f.voice_description) parts.push('Prompt: "' + f.voice_description.slice(0, 50) + '"');
+      return parts.join(' | ') || '(current form state)';
+    },
+  },
+  mounted() {
+    this.$nextTick(() => {
+      const inp = this.$el.querySelector('#save-preset-name');
+      if (inp) inp.focus();
+    });
+  },
+  methods: {
+    save() {
+      if (this.saving) return;
+      this.saving = true;
+      const s = this.$store;
+      const config = {
+        model: s.form.model,
+        speaker_name: s.form.speaker_name,
+        voice_description: s.form.voice_description,
+        speed: s.form.speed,
+        temperature: s.form.temperature,
+        seed: s.form.seed,
+        add_pauses: s.form.add_pauses,
+        exaggeration: s.form.exaggeration,
+        cfg_weight: s.form.cfg_weight,
+        blendMode: s.blendMode,
+        blendSelections: { ...s.blendSelections },
+        e2eEnabled: s.e2eEnabled,
+        e2eModel: s.e2eModel,
+        e2eLanguage: s.e2eLanguage,
+      };
+      fetch('/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: this.presetName.trim(), config }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.name) {
+            this.$store.savePresetStatus = 'Saved as "' + data.name + '"';
+            this.$store.savePresetStatusClass = 'success';
+            if (data.presets) this.$store.presets = data.presets;
+            this.saving = false;
+            setTimeout(() => this.close(), 1200);
+          }
+        })
+        .catch(err => {
+          this.$store.savePresetStatus = 'Error saving preset';
+          this.$store.savePresetStatusClass = 'error';
+          this.saving = false;
+        });
+    },
+    close() { this.$store.showSavePreset = false; },
+  },
+};
+
 comps['curl-console'] = {
   template: '#curl-console-template',
   computed: {
