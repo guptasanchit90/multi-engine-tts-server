@@ -537,9 +537,27 @@ comps['generate-form'] = {
       return parts.length ? '— ' + parts.join(' · ') : '';
     },
   },
+  watch: {
+    '$store.batchMode'(val) {
+      if (val) {
+        const tabs = this.batchTabs;
+        if (tabs.length && !tabs.find(t => t.key === this.$store.batchTab)) {
+          this.$store.batchTab = tabs[0].key;
+        }
+      }
+    },
+    batchTabs(tabs) {
+      if (this.$store.batchMode && tabs.length && !tabs.find(t => t.key === this.$store.batchTab)) {
+        this.$store.batchTab = tabs[0].key;
+      }
+    },
+  },
   methods: {
     engineLabel(engine) {
       return engine.charAt(0).toUpperCase() + engine.slice(1);
+    },
+    switchBatchTab(key) {
+      this.$store.batchTab = key;
     },
     capsLabel(m) {
       if (!m.capabilities || !m.capabilities.length) return '';
