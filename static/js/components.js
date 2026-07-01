@@ -1582,6 +1582,35 @@ comps['curl-console'] = {
   computed: {
     curlText() {
       const store = this.$store;
+
+      // Batch mode — not applicable (check per-tab to avoid stale flags)
+      if (
+        (store.activeTab === 'generate' && store.batchMode) ||
+        (store.activeTab === 'transcribe' && store.batchTranscribeMode)
+      ) {
+        return '# Batch mode active — curl not available for batch operations';
+      }
+
+      // Transcribe tab
+      if (store.activeTab === 'transcribe') {
+        const model = store.transcribeForm.model;
+        const files = store.transcribeForm.stagedFiles;
+        const idx = store.transcribeForm.activeFileIndex;
+        const file = files.length ? files[idx] : null;
+        if (!model || !file) return '# Fill out the transcribe form to generate a curl command...';
+        const lines = [
+          'curl -X POST http://localhost:8000/v1/audio/transcriptions \\',
+          '  -H "X-Save-Output: true" \\',
+          `  -F "file=@${file.name}" \\`,
+          `  -F "model=${model}" \\`,
+        ];
+        const lang = store.transcribeForm.language.trim();
+        if (lang) lines.push(`  -F "language=${lang}" \\`);
+        lines.push('  -F "response_format=verbose_json"');
+        return lines.join('\n');
+      }
+
+      // Generate tab
       const m = store.form.model;
       const t = store.form.text.trim();
       if (!m || !t) return '# Fill out the form to generate a curl command...';
