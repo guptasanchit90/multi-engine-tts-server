@@ -369,6 +369,11 @@ comps['generate-form'] = {
       genStatus: '',
       genStatusClass: '',
       btnState: '',
+      transcribeStaging: false,
+      transcribeStagingStatus: '',
+      transcribeStagingStatusClass: '',
+      transcribeUrlFetching: false,
+      expandedFileGroups: {},
     };
   },
   computed: {
@@ -520,6 +525,41 @@ comps['generate-form'] = {
     },
     hasAvailSttModel() {
       return (this.$store.e2eModels || []).some(m => m.available);
+    },
+    sttMlxModels() {
+      return (this.$store.e2eModels || []).filter(m => m.mlx_required);
+    },
+    sttFasterModels() {
+      return (this.$store.e2eModels || []).filter(m => !m.mlx_required);
+    },
+    availSttModels() {
+      return (this.$store.e2eModels || []).filter(m => m.available);
+    },
+    activeStagedFile() {
+      const files = this.$store.transcribeForm.stagedFiles;
+      return files[this.$store.transcribeForm.activeFileIndex] || null;
+    },
+    canTranscribe() {
+      if (!this.$store.transcribeForm.stagedFiles.length) return false;
+      if (this.$store.batchTranscribeMode) return this.$store.selectedTranscribeModels.length > 0;
+      return !!this.$store.transcribeForm.model;
+    },
+    selectedTranscribeCount() {
+      return this.$store.selectedTranscribeModels.length;
+    },
+    batchTranscribeLabel() {
+      if (this.$store.batchTranscribeProgress) return 'Transcribing...';
+      const n = this.$store.selectedTranscribeModels.length;
+      const f = this.$store.transcribeForm.stagedFiles.length;
+      return 'Transcribe ' + f + ' file' + (f > 1 ? 's' : '') + ' with ' + n + ' model' + (n === 1 ? '' : 's');
+    },
+    batchGroupedResults() {
+      const groups = {};
+      this.$store.batchTranscribeResults.forEach(r => {
+        if (!groups[r.fileName]) groups[r.fileName] = { fileName: r.fileName, results: [] };
+        groups[r.fileName].results.push(r);
+      });
+      return Object.values(groups);
     },
     advancedSummary() {
       const parts = [];
@@ -956,6 +996,446 @@ comps['generate-form'] = {
 
     selectAllVoices() {
       this.$store.multivoiceSelectedVoices.splice(0, this.$store.multivoiceSelectedVoices.length, ...this.multivoiceVoices);
+    },
+
+    // ── Transcribe tab ────────────────────────────────────────────────────
+
+    switchToTranscribeTab() {
+      this.$store.activeTab = 'transcribe';
+      if (!this.$store.transcribeForm.model) {
+        const avail = this.availSttModels;
+        const mlx = avail.find(m => m.mlx_required);
+        if (mlx) this.$store.transcribeForm.model = mlx.id;
+        else if (avail.length) this.$store.transcribeForm.model = avail[0].id;
+      }
+    },
+    switchTranscribeMode(val) {
+      this.$store.batchTranscribeMode = val;
+      if (val && !this.$store.selectedTranscribeModels.length) {
+        this.$store.selectedTranscribeModels = this.availSttModels.filter(m => m.available).map(m => m.id);
+      }
+    },
+
+    // ── Audio staging ────────────────────────────────────────────────────
+
+    async transcribeUploadSubmit(e) {
+      const files = e.target.files;
+      if (!files || !files.length) return;
+      this.transcribeStaging = true;
+      this.transcribeStagingStatus = 'Uploading ' + files.length + ' file(s)...';
+      this.transcribeStagingStatusClass = '';
+      let uploaded = 0;
+      for (const file of files) {
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const resp = await fetch('/voice/stage', { method: 'POST', body: fd });
+          const data = await resp.json();
+          if (resp.ok) {
+            this.$store.transcribeForm.stagedFiles.push(data);
+            this.$store.transcribeForm.activeFileIndex = this.$store.transcribeForm.stagedFiles.length - 1;
+            uploaded++;
+          }
+        } catch {}
+      }
+      // Clear all file inputs
+      this.$el.querySelectorAll('input[type=file]').forEach(el => el.value = '');
+      this.transcribeStaging = false;
+      if (uploaded) this.transcribeStagingStatus = '';
+      else this.transcribeStagingStatus = 'Upload failed. Check file format and try again.';
+    },
+
+    async transcribeUrlSubmit() {
+      const url = this.$store.transcribeForm.urlAddress.trim();
+      if (!url) { this.transcribeStagingStatus = 'Please enter a URL.'; this.transcribeStagingStatusClass = 'error'; return; }
+      if (!/^https?:\/\//i.test(url)) { this.transcribeStagingStatus = 'URL must start with http:// or https://'; this.transcribeStagingStatusClass = 'error'; return; }
+      this.transcribeUrlFetching = true;
+      this.transcribeStagingStatus = '';
+      try {
+        const resp = await fetch('/voice/stage/url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) { this.transcribeStagingStatus = data.detail || 'Error ' + resp.status; this.transcribeStagingStatusClass = 'error'; return; }
+        this.$store.transcribeForm.stagedFiles.push(data);
+        this.$store.transcribeForm.activeFileIndex = this.$store.transcribeForm.stagedFiles.length - 1;
+        this.$store.transcribeForm.urlAddress = '';
+      } catch (err) { this.transcribeStagingStatus = 'Network error: ' + err.message; this.transcribeStagingStatusClass = 'error'; }
+      finally { this.transcribeUrlFetching = false; }
+    },
+
+    switchActiveFile(i) {
+      this.stopTranscribePlayer();
+      this.$store.transcribeForm.activeFileIndex = i;
+    },
+
+    async removeStagedFile(i) {
+      const file = this.$store.transcribeForm.stagedFiles[i];
+      if (file) { try { await fetch('/voice/stage/' + encodeURIComponent(file.name), { method: 'DELETE' }); } catch {} }
+      this.stopTranscribePlayer();
+      this.$store.transcribeForm.stagedFiles.splice(i, 1);
+      if (!this.$store.transcribeForm.stagedFiles.length) {
+        this.$store.transcribeForm.audioSource = 'file';
+      } else if (this.$store.transcribeForm.activeFileIndex >= this.$store.transcribeForm.stagedFiles.length) {
+        this.$store.transcribeForm.activeFileIndex = this.$store.transcribeForm.stagedFiles.length - 1;
+      }
+    },
+
+    addMoreFiles() {
+      this.$store.transcribeForm.audioSource = 'file';
+      this.$el.querySelector('#transcribeFileAddInput')?.click();
+    },
+
+    // ── Recording ────────────────────────────────────────────────────────
+
+    generateTranscribeVoiceName() {
+      const adj = ['Velvet','Crimson','Amber','Azure','Neon','Shadow','Crystal','Silver','Midnight','Solar','Ember','Frost','Echo','Prism','Nova','Aurora','Drift','Pulse'];
+      const noun = ['Voice','Audio','Clip','Sample','Track','Wave','Take','Feed','Stream','Segment','Record','Chunk'];
+      return adj[Math.floor(Math.random() * adj.length)] + '_' + noun[Math.floor(Math.random() * noun.length)];
+    },
+
+    async startTranscribeRecording() {
+      if (!this.$store.transcribeForm.recordName.trim()) {
+        this.$store.transcribeForm.recordName = this.generateTranscribeVoiceName();
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        this.transcribeStagingStatus = window.isSecureContext === false
+          ? 'Recording requires HTTPS / localhost. Use http://localhost:8000.'
+          : 'Recording not supported in this browser.';
+        this.transcribeStagingStatusClass = 'error';
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.$store.transcribeStream = stream;
+        this.$store.transcribeChunks = [];
+        this.$store.transcribeRecorder = new MediaRecorder(stream, {
+          mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm',
+        });
+        this.$store.transcribeRecorder.ondataavailable = (e => { if (e.data.size > 0) this.$store.transcribeChunks.push(e.data); });
+        this.$store.transcribeRecorder.onstop = () => this.onTranscribeRecordingStop();
+        this.$store.transcribeRecorder.start();
+        this.$store.transcribeRecording = true;
+        this.transcribeStagingStatus = 'Recording... Speak now.';
+        this.transcribeStagingStatusClass = 'success';
+
+        this.$store.transcribeCtx = new AudioContext();
+        const src = this.$store.transcribeCtx.createMediaStreamSource(stream);
+        this.$store.transcribeAnalyser = this.$store.transcribeCtx.createAnalyser();
+        this.$store.transcribeAnalyser.fftSize = 128;
+        src.connect(this.$store.transcribeAnalyser);
+        this.drawTranscribeWave();
+      } catch (err) {
+        this.transcribeStagingStatus = 'Microphone access denied: ' + err.message;
+        this.transcribeStagingStatusClass = 'error';
+      }
+    },
+
+    stopTranscribeRecording() {
+      if (this.$store.transcribeRecorder && this.$store.transcribeRecorder.state !== 'inactive') this.$store.transcribeRecorder.stop();
+      this.$store.transcribeRecording = false;
+    },
+
+    async onTranscribeRecordingStop() {
+      if (this.$store.transcribeStream) { this.$store.transcribeStream.getTracks().forEach(t => t.stop()); this.$store.transcribeStream = null; }
+      if (this.$store.transcribeAnimFrame) { cancelAnimationFrame(this.$store.transcribeAnimFrame); this.$store.transcribeAnimFrame = null; }
+      this.$store.transcribeAnalyser = null;
+      if (this.$store.transcribeCtx) { this.$store.transcribeCtx.close(); this.$store.transcribeCtx = null; }
+      this.$store.transcribeRecording = false;
+      if (!this.$store.transcribeChunks.length) return;
+
+      const blob = new Blob(this.$store.transcribeChunks, { type: this.$store.transcribeRecorder ? this.$store.transcribeRecorder.mimeType : 'audio/webm' });
+      const fd = new FormData();
+      fd.append('file', blob, this.$store.transcribeForm.recordName.trim() + '.webm');
+      fd.append('name', this.$store.transcribeForm.recordName.trim());
+      this.transcribeStagingStatus = 'Uploading...';
+      this.transcribeStagingStatusClass = '';
+      try {
+        const resp = await fetch('/voice/stage', { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (!resp.ok) { this.transcribeStagingStatus = data.detail || 'Error ' + resp.status; this.transcribeStagingStatusClass = 'error'; return; }
+        this.$store.transcribeForm.stagedFiles.push(data);
+        this.$store.transcribeForm.activeFileIndex = this.$store.transcribeForm.stagedFiles.length - 1;
+        this.$store.transcribeForm.recordName = '';
+        this.transcribeStagingStatus = '';
+      } catch (err) { this.transcribeStagingStatus = 'Network error: ' + err.message; this.transcribeStagingStatusClass = 'error'; }
+    },
+
+    drawTranscribeWave() {
+      if (!this.$store.transcribeAnalyser) return;
+      const canvas = this.$el && this.$el.querySelector('#transcribe-wave');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const bufferLength = this.$store.transcribeAnalyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      const w = canvas.width, h = canvas.height;
+      const draw = () => {
+        if (!this.$store.transcribeAnalyser) return;
+        this.$store.transcribeAnimFrame = requestAnimationFrame(draw);
+        this.$store.transcribeAnalyser.getByteTimeDomainData(dataArray);
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#58a6ff';
+        ctx.beginPath();
+        const sliceWidth = w / bufferLength;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = v * h / 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+      };
+      draw();
+    },
+
+    // ── Staged audio player ──────────────────────────────────────────────
+
+    formatTranscribeTime(s) {
+      if (!s || !isFinite(s)) return '0:00';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return m + ':' + (sec < 10 ? '0' : '') + sec;
+    },
+
+    toggleTranscribePlayer() {
+      if (this.$store.transcribeAudioEl && this.$store.transcribePlaying) {
+        this.stopTranscribePlayer();
+        return;
+      }
+      if (this.$store.currentAudio) { this.$store.currentAudio.pause(); this.$store.currentAudio = null; this.$store.currentName = ''; }
+      if (this.$store.transcribeAudioEl) { this.$store.transcribeAudioEl.pause(); this.$store.transcribeAudioEl = null; }
+      const s = this.activeStagedFile;
+      if (!s) return;
+      const audio = new Audio(s.url);
+      this.$store.transcribeAudioEl = audio;
+      this.$store.transcribeSeeker = true;
+      this.$store.transcribePlaying = true;
+
+      audio.addEventListener('timeupdate', () => {
+        this.$store.transcribeCurrentTime = audio.currentTime;
+        this.$store.transcribeDuration = audio.duration || 0;
+      });
+      audio.addEventListener('ended', () => this.stopTranscribePlayer());
+      audio.play().catch(() => this.stopTranscribePlayer());
+    },
+
+    stopTranscribePlayer() {
+      if (this.$store.transcribeAudioEl) { this.$store.transcribeAudioEl.pause(); this.$store.transcribeAudioEl = null; }
+      this.$store.transcribePlaying = false;
+      this.$store.transcribeSeeker = false;
+      this.$store.transcribeCurrentTime = 0;
+      this.$store.transcribeDuration = 0;
+    },
+
+    seekTranscribePlayer(e) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      const audio = this.$store.transcribeAudioEl;
+      if (audio && audio.duration) audio.currentTime = pct * audio.duration;
+    },
+
+    // ── Transcription core ────────────────────────────────────────────────
+
+    async submitTranscribe() {
+      const files = this.$store.transcribeForm.stagedFiles;
+      const model = this.$store.transcribeForm.model;
+      if (!files.length || !model) {
+        this.$store.transcribeStatus = 'Please upload audio and select a model.';
+        this.$store.transcribeStatusClass = 'error';
+        return;
+      }
+      this.$store.transcribeLoading = true;
+      this.$store.transcribeStatus = 'Transcribing ' + files.length + ' file(s)...';
+      this.$store.transcribeStatusClass = '';
+      this.$store.transcribeResults = [];
+      const lang = this.$store.transcribeForm.language.trim() || undefined;
+
+      for (const file of files) {
+        try {
+          const audioResp = await fetch(file.url);
+          const blob = await audioResp.blob();
+          const fd = new FormData();
+          fd.append('file', blob, file.name);
+          fd.append('model', model);
+          if (lang) fd.append('language', lang);
+          fd.append('response_format', 'verbose_json');
+          const resp = await fetch('/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { 'x-save-output': 'true' },
+            body: fd,
+          });
+          const data = await resp.json();
+          if (resp.ok) {
+            this.$store.transcribeResults.push({
+              fileName: file.name.replace('.wav', ''),
+              text: data.text,
+              detected_language: data.detected_language || '',
+            });
+          } else {
+            this.$store.transcribeResults.push({
+              fileName: file.name.replace('.wav', ''),
+              text: '[Error: ' + (data.detail || resp.status) + ']',
+              detected_language: '',
+              error: true,
+            });
+          }
+        } catch (err) {
+          this.$store.transcribeResults.push({
+            fileName: file.name.replace('.wav', ''),
+            text: '[Network error]',
+            detected_language: '',
+            error: true,
+          });
+        }
+      }
+
+      this.$store.transcribeLoading = false;
+      this.$store.transcribeStatus = '';
+      try { const out = await fetch('/outputs/detail').then(r => r.json()); this.$store.outputs = out; } catch {}
+    },
+
+    async submitBatchTranscribe() {
+      const files = this.$store.transcribeForm.stagedFiles;
+      const models = this.$store.selectedTranscribeModels;
+      if (!files.length || !models.length) {
+        this.$store.transcribeStatus = 'Please upload audio and select at least one model.';
+        this.$store.transcribeStatusClass = 'error';
+        return;
+      }
+      const lang = this.$store.transcribeForm.language.trim() || undefined;
+
+      this.$store.batchTranscribeAbort = false;
+      this.$store.batchTranscribeResults = [];
+      this.$store.batchTranscribeSummary = null;
+      const total = files.length * models.length;
+      this.$store.batchTranscribeProgress = { current: 0, total, modelName: '' };
+      this.$store.transcribeStatus = '';
+      this.expandedFileGroups = {};
+
+      let succeeded = 0;
+      let failed = 0;
+      let done = 0;
+      const errors = [];
+
+      for (const file of files) {
+        for (const modelId of models) {
+          if (this.$store.batchTranscribeAbort) { errors.push('Cancelled after ' + done + ' of ' + total); break; }
+          const m = this.$store.e2eModels.find(x => x.id === modelId);
+          const label = m ? m.name : modelId;
+          done++;
+          this.$store.batchTranscribeProgress = { current: done, total, modelName: file.name.replace('.wav', '') + ' / ' + label };
+
+          try {
+            const audioResp = await fetch(file.url);
+            const blob = await audioResp.blob();
+            const fd = new FormData();
+            fd.append('file', blob, file.name);
+            fd.append('model', modelId);
+            if (lang) fd.append('language', lang);
+            fd.append('response_format', 'verbose_json');
+            const resp = await fetch('/v1/audio/transcriptions', {
+              method: 'POST',
+              headers: { 'x-save-output': 'true' },
+              body: fd,
+            });
+            const data = await resp.json();
+            if (resp.ok) {
+              this.$store.batchTranscribeResults.push({
+                fileName: file.name.replace('.wav', ''),
+                modelId,
+                modelName: label,
+                text: data.text,
+                detected_language: data.detected_language || '',
+              });
+              succeeded++;
+            } else {
+              this.$store.batchTranscribeResults.push({
+                fileName: file.name.replace('.wav', ''),
+                modelId,
+                modelName: label,
+                text: '[Error: ' + (data.detail || resp.status) + ']',
+                detected_language: '',
+                error: true,
+              });
+              failed++;
+            }
+          } catch (err) {
+            this.$store.batchTranscribeResults.push({
+              fileName: file.name.replace('.wav', ''),
+              modelId,
+              modelName: label,
+              text: '[Network error]',
+              detected_language: '',
+              error: true,
+            });
+            failed++;
+          }
+        }
+        if (this.$store.batchTranscribeAbort) break;
+      }
+
+      this.$store.batchTranscribeProgress = null;
+      try { const out = await fetch('/outputs/detail').then(r => r.json()); this.$store.outputs = out; } catch {}
+
+      if (this.$store.batchTranscribeAbort) {
+        this.$store.batchTranscribeSummary = { type: 'warning', message: 'Cancelled. ' + succeeded + ' ok, ' + failed + ' failed.', detail: errors.join('\n') };
+      } else {
+        this.$store.batchTranscribeSummary = {
+          type: failed === 0 ? 'success' : 'warning',
+          message: 'Transcribed ' + succeeded + ' of ' + (succeeded + failed) + (failed ? ' (' + failed + ' failed)' : ''),
+          detail: errors.join('\n'),
+        };
+      }
+      setTimeout(() => { this.$store.batchTranscribeSummary = null; }, 15000);
+    },
+
+    toggleFileGroup(gi) {
+      const cur = this.expandedFileGroups[gi];
+      this.expandedFileGroups = { ...this.expandedFileGroups, [gi]: !cur };
+    },
+
+    cancelBatchTranscribe() {
+      this.$store.batchTranscribeAbort = true;
+    },
+
+    toggleTranscribeBatchModel(id) {
+      const idx = this.$store.selectedTranscribeModels.indexOf(id);
+      if (idx >= 0) { this.$store.selectedTranscribeModels.splice(idx, 1); }
+      else { this.$store.selectedTranscribeModels.push(id); }
+    },
+
+    selectAllTranscribeModels() {
+      this.$store.selectedTranscribeModels.splice(0, this.$store.selectedTranscribeModels.length, ...this.availSttModels.filter(m => m.available).map(m => m.id));
+    },
+
+    copyTranscription(text) {
+      navigator.clipboard.writeText(text).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      });
+    },
+
+    downloadTranscriptionTxt(text, suffix) {
+      const name = suffix || 'transcription';
+      const safe = name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safe + '.txt';
+      a.click();
+      URL.revokeObjectURL(url);
     },
   },
 };

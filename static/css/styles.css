@@ -1350,3 +1350,242 @@ input[type="range"] {
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   font-size: 0.68rem;
 }
+
+/* ── App-level tab bar (Generate Speech / Transcribe) ──────────────────── */
+.app-tabs {
+  display: flex;
+  gap: 0;
+  width: 100%;
+}
+.app-tab {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.app-tab:hover { color: var(--text); }
+.app-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Transcribe source tabs ────────────────────────────────────────────── */
+.transcribe-source-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+}
+.transcribe-source-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.transcribe-source-tab svg { flex-shrink: 0; opacity: 0.65; }
+.transcribe-source-tab.active svg { opacity: 1; }
+.transcribe-source-tab:hover { color: var(--text); }
+.transcribe-source-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Transcribe result ─────────────────────────────────────────────────── */
+.transcribe-result, .transcribe-batch-item {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.transcribe-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.transcribe-result-header svg { flex-shrink: 0; opacity: 0.65; }
+.transcribe-result-meta { margin-left: auto; display: flex; gap: 0.35rem; }
+.transcribe-lang-badge {
+  display: inline-block;
+  padding: 0.1rem 0.35rem;
+  background: var(--badge-bg);
+  border: 1px solid var(--badge-border);
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.transcribe-result-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 0.35rem;
+}
+.transcribe-result-actions .icon-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s;
+}
+.transcribe-result-actions .icon-btn:hover { color: var(--text); border-color: var(--accent); }
+.transcribe-result-text {
+  width: 100%;
+  min-height: 140px;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: none;
+  color: var(--text);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  resize: vertical;
+  font-family: inherit;
+  outline: none;
+}
+.transcribe-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.transcribe-batch-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.transcribe-staged {
+  margin-bottom: 0.75rem;
+}
+.transcribe-advanced {
+  margin-top: 0.75rem;
+}
+.transcribe-status {
+  margin-top: 0.5rem;
+}
+.transcribe-upload-zone {
+  margin-bottom: 0.75rem;
+}
+
+/* ── URL input inline (Fetch button next to input) ───────────────────── */
+.url-input-inline {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.url-input-inline .url-input-icon { flex-shrink: 0; }
+.url-input-inline input { flex: 1; }
+
+/* ── Staged file tabs (multi-file) ────────────────────────────────────── */
+.staged-file-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.staged-file-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+.staged-file-tab:hover { border-color: var(--accent); color: var(--text); }
+.staged-file-tab.active { background: var(--badge-bg); border-color: var(--accent); color: var(--accent); }
+.staged-file-tab-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.staged-file-tab-remove {
+  margin-left: 0.15rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--danger);
+  opacity: 0.6;
+}
+.staged-file-tab-remove:hover { opacity: 1; }
+
+/* ── Batch group (file grouping) ──────────────────────────────────────── */
+.transcribe-batch-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.transcribe-batch-group-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  user-select: none;
+}
+.transcribe-batch-group-header:hover { background: rgba(255,255,255,0.03); }
+.transcribe-batch-group-header svg { flex-shrink: 0; opacity: 0.65; }
+.transcribe-batch-group-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.transcribe-batch-group-count {
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+}
+.collapse-arrow {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  transition: transform 0.2s;
+  color: var(--muted);
+}
+.collapse-arrow.open { transform: rotate(90deg); }
+.transcribe-batch-group-body {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.transcribe-batch-group-body .transcribe-batch-item {
+  margin: 0;
+}
+
+/* ── Wave container for transcribe recording ──────────────────────────── */
+#transcribe-wave {
+  display: block;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  max-width: 100%;
+  height: 60px;
+  margin-top: 0.5rem;
+}

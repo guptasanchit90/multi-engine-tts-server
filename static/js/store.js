@@ -95,6 +95,51 @@ const store = reactive({
 
   // Rename state
   renaming: null, // { original: string, current: string } or null
+
+  // Tab mode
+  activeTab: 'generate', // 'generate' | 'transcribe'
+
+  // Transcribe form
+  transcribeForm: {
+    audioSource: 'file',  // 'file' | 'record' | 'url'
+    uploadFile: null,
+    recordName: '',
+    urlAddress: '',
+    stagedFiles: [],
+    activeFileIndex: 0,
+    model: '',
+    language: '',
+  },
+
+  // Transcribe recording
+  transcribeRecording: false,
+  transcribeRecorder: null,
+  transcribeChunks: [],
+  transcribeCtx: null,
+  transcribeAnalyser: null,
+  transcribeAnimFrame: null,
+  transcribeStream: null,
+
+  // Transcribe audio player (for staged audio preview)
+  transcribePlaying: false,
+  transcribeCurrentTime: 0,
+  transcribeDuration: 0,
+  transcribeSeeker: false,
+  transcribeAudioEl: null,
+
+  // Transcribe status
+  transcribeStatus: '',
+  transcribeStatusClass: '',
+  transcribeLoading: false,
+  transcribeResults: [],
+
+  // Batch transcribe
+  batchTranscribeMode: false,
+  selectedTranscribeModels: [],
+  batchTranscribeProgress: null,
+  batchTranscribeAbort: false,
+  batchTranscribeResults: [],
+  batchTranscribeSummary: null,
 });
 
 // Shared helper — transform /v1/voices data into store.voices + store.voiceDetails
@@ -137,4 +182,30 @@ watch(() => ({ e2eEnabled: store.e2eEnabled, e2eModel: store.e2eModel, e2eLangua
 try {
   const saved = localStorage.getItem(E2E_KEY);
   if (saved) Object.assign(store, JSON.parse(saved));
+} catch {}
+
+const UI_KEY = 'sonus-ui';
+
+// Persist UI state (tab selection, batch modes)
+watch(() => ({ activeTab: store.activeTab, batchMode: store.batchMode, batchTab: store.batchTab, batchTranscribeMode: store.batchTranscribeMode }), (val) => {
+  try { localStorage.setItem(UI_KEY, JSON.stringify(val)); } catch {}
+}, { deep: true });
+
+// Restore UI state
+try {
+  const saved = localStorage.getItem(UI_KEY);
+  if (saved) Object.assign(store, JSON.parse(saved));
+} catch {}
+
+const TRANS_KEY = 'sonus-transcribe';
+
+// Persist transcribe form
+watch(() => ({ model: store.transcribeForm.model, language: store.transcribeForm.language, audioSource: store.transcribeForm.audioSource }), (val) => {
+  try { localStorage.setItem(TRANS_KEY, JSON.stringify(val)); } catch {}
+}, { deep: true });
+
+// Restore transcribe form
+try {
+  const saved = localStorage.getItem(TRANS_KEY);
+  if (saved) Object.assign(store.transcribeForm, JSON.parse(saved));
 } catch {}

@@ -194,8 +194,15 @@
 
 <script type="text/x-template" id="generate-form-template">
   <div class="panel">
-    <div class="panel-header"><span>Generate Speech</span></div>
+    <div class="panel-header">
+      <div class="app-tabs">
+        <button class="app-tab" :class="{ active: $store.activeTab === 'generate' }" @click="$store.activeTab = 'generate'" type="button">Generate Speech</button>
+        <button class="app-tab" :class="{ active: $store.activeTab === 'transcribe' }" @click="switchToTranscribeTab" type="button">Transcribe</button>
+      </div>
+    </div>
     <div class="panel-body">
+
+      <template v-if="$store.activeTab === 'generate'">
       <div class="mode-toggle">
         <div class="pill-indicator" :class="{ right: $store.batchMode }"></div>
         <button class="mode-btn" :class="{ active: !$store.batchMode }" @click="$store.batchMode = false" :disabled="!!$store.batchProgress">Single</button>
@@ -474,6 +481,242 @@
           <div class="status-msg" :class="genStatusClass" v-if="genStatus && !$store.batchProgress">{{ genStatus }}</div>
         </transition>
       </form>
+      </template>
+
+      <template v-if="$store.activeTab === 'transcribe'">
+      <div class="mode-toggle">
+        <div class="pill-indicator" :class="{ right: $store.batchTranscribeMode }"></div>
+        <button class="mode-btn" :class="{ active: !$store.batchTranscribeMode }" @click="$store.batchTranscribeMode = false" :disabled="!!$store.batchTranscribeProgress">Single</button>
+        <button class="mode-btn" :class="{ active: $store.batchTranscribeMode }" @click="switchTranscribeMode(true)" :disabled="!!$store.batchTranscribeProgress">Batch</button>
+      </div>
+
+      <input type="file" ref="transcribeFileAddInput" id="transcribeFileAddInput" multiple accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" @change="transcribeUploadSubmit" hidden>
+
+      <template v-if="!$store.transcribeForm.stagedFiles.length">
+        <div class="transcribe-source-tabs">
+          <button class="modal-tab transcribe-source-tab" :class="{ active: $store.transcribeForm.audioSource === 'file' }" @click="$store.transcribeForm.audioSource = 'file'" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload File
+          </button>
+          <button class="modal-tab transcribe-source-tab" :class="{ active: $store.transcribeForm.audioSource === 'record' }" @click="switchTranscribeSource('record')" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            Record Audio
+          </button>
+          <button class="modal-tab transcribe-source-tab" :class="{ active: $store.transcribeForm.audioSource === 'url' }" @click="$store.transcribeForm.audioSource = 'url'" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            From URL
+          </button>
+        </div>
+
+        <div v-if="$store.transcribeForm.audioSource === 'file'" class="transcribe-upload-zone">
+          <input type="file" ref="transcribeFileInput" multiple accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" @change="transcribeUploadSubmit" hidden>
+          <div class="upload-zone" @click="$refs.transcribeFileInput.click()">
+            <svg class="upload-zone-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span class="upload-zone-label">Click to select audio file(s)</span>
+            <span class="upload-hint">Multiple files accepted &mdash; WAV, MP3, M4A, OGG, WebM</span>
+          </div>
+          <div class="transcribe-status" v-if="transcribeStagingStatus">
+            <div class="status-msg" :class="transcribeStagingStatusClass">{{ transcribeStagingStatus }}</div>
+          </div>
+        </div>
+
+        <div v-if="$store.transcribeForm.audioSource === 'record'" class="record-section">
+          <div class="record-btn-wrap">
+            <button type="button" class="record-btn" :class="{ recording: transcribeRecording }" @click="transcribeRecording ? stopTranscribeRecording() : startTranscribeRecording()">
+              <template v-if="!transcribeRecording">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+              </template>
+              <template v-else>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              </template>
+            </button>
+            <span class="record-label">{{ transcribeRecording ? 'Recording...' : 'Click to record' }}</span>
+          </div>
+          <div class="wave-container" v-show="transcribeRecording">
+            <canvas id="transcribe-wave" ref="transcribeWaveCanvas" width="380" height="60"></canvas>
+          </div>
+        </div>
+
+        <div v-if="$store.transcribeForm.audioSource === 'url'" class="url-section">
+          <div class="url-input-wrap url-input-inline">
+            <svg class="url-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <input type="url" ref="transcribeUrlInput" v-model="$store.transcribeForm.urlAddress" placeholder="https://example.com/audio.mp3" @keyup.enter="transcribeUrlSubmit">
+            <button type="button" class="btn" @click="transcribeUrlSubmit" :disabled="transcribeUrlFetching" style="flex-shrink:0;white-space:nowrap">{{ transcribeUrlFetching ? 'Fetching...' : 'Fetch' }}</button>
+          </div>
+          <div class="transcribe-status" v-if="transcribeStagingStatus">
+            <div class="status-msg" :class="transcribeStagingStatusClass">{{ transcribeStagingStatus }}</div>
+          </div>
+        </div>
+      </template>
+
+      <template v-if="$store.transcribeForm.stagedFiles.length">
+        <div class="staged-file-tabs" v-if="$store.transcribeForm.stagedFiles.length > 1">
+          <button v-for="(f, i) in $store.transcribeForm.stagedFiles" :key="f.name"
+            class="staged-file-tab" :class="{ active: $store.transcribeForm.activeFileIndex === i }"
+            @click="switchActiveFile(i)" type="button">
+            <span class="staged-file-tab-name">{{ f.name.replace('.wav', '').slice(0, 18) }}</span>
+            <span class="staged-file-tab-remove" @click.stop="removeStagedFile(i)">&times;</span>
+          </button>
+        </div>
+        <div class="staged-card transcribe-staged">
+          <div class="staged-header">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span>{{ activeStagedFile.name.replace('.wav', '') }}</span>
+          </div>
+          <div class="staged-meta">
+            <span class="staged-meta-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              {{ activeStagedFile.duration }}s
+            </span>
+            <span class="staged-meta-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              {{ (activeStagedFile.size / 1024).toFixed(0) }} KB
+            </span>
+            <span class="staged-meta-badge staged-meta-badge-accent">WAV</span>
+          </div>
+          <div class="staged-player">
+            <div class="staged-player-main">
+              <button class="player-play-btn" :class="{ playing: transcribePlaying }" @click="toggleTranscribePlayer" :title="transcribePlaying ? 'Stop' : 'Play'">
+                <span class="play-icon">&#9654;</span>
+                <span class="stop-icon">&#9632;</span>
+              </button>
+              <div class="staged-player-info">
+                <div class="staged-player-name">{{ activeStagedFile.name.replace('.wav', '') }}</div>
+                <div class="staged-player-meta">{{ activeStagedFile.duration }}s</div>
+              </div>
+            </div>
+            <div class="player-seeker" v-if="transcribeSeeker" @click="seekTranscribePlayer">
+              <div class="seeker-equ">
+                <div v-if="transcribePlaying" class="wave-bars"><span v-for="i in 20" :key="i"></span></div>
+                <div class="seeker-track">
+                  <div class="seeker-fill" :class="{ playing: transcribePlaying }" :style="{ width: transcribeDuration ? (transcribeCurrentTime / transcribeDuration * 100) + '%' : '0%' }"></div>
+                </div>
+              </div>
+              <span class="seeker-time">{{ formatTranscribeTime(transcribeCurrentTime) }} / {{ formatTranscribeTime(transcribeDuration) }}</span>
+            </div>
+          </div>
+          <div class="staged-actions">
+            <button type="button" class="btn btn-ghost" @click="removeStagedFile($store.transcribeForm.activeFileIndex)">Remove</button>
+            <button type="button" class="btn btn-ghost" @click="addMoreFiles">Add more</button>
+          </div>
+        </div>
+      </template>
+
+      <div class="form-group" v-if="availSttModels.length && !$store.batchTranscribeMode">
+        <label for="transcribe_model">Model *</label>
+        <select id="transcribe_model" v-model="$store.transcribeForm.model" :disabled="!!$store.batchTranscribeProgress">
+          <option value="">— Select a model —</option>
+          <optgroup label="MLX Whisper (Apple Silicon)">
+            <option v-for="m in sttMlxModels" :key="m.id" :value="m.id" :disabled="!m.available">
+              {{ m.name }}{{ m.available ? '' : ' [install]' }}
+            </option>
+          </optgroup>
+          <optgroup label="Faster Whisper (CPU / GPU)">
+            <option v-for="m in sttFasterModels" :key="m.id" :value="m.id" :disabled="!m.available">
+              {{ m.name }}{{ m.available ? '' : ' [install]' }}
+            </option>
+          </optgroup>
+        </select>
+      </div>
+
+      <template v-if="$store.batchTranscribeMode">
+        <div class="form-group">
+          <label>Models for batch ({{ selectedTranscribeCount }} selected)</label>
+          <div class="model-grid">
+            <div v-for="(m, i) in availSttModels" :key="m.id" class="model-card" :style="{ '--i': i }"
+              :class="{ selected: $store.selectedTranscribeModels.includes(m.id) }"
+              @click="toggleTranscribeBatchModel(m.id)">
+              <input type="checkbox" :checked="$store.selectedTranscribeModels.includes(m.id)" @click.stop>
+              <span class="model-name">{{ m.name }}</span>
+            </div>
+          </div>
+          <div class="model-select-actions">
+            <button type="button" @click="selectAllTranscribeModels">Select all</button>
+            <button type="button" @click="$store.selectedTranscribeModels = []">Clear</button>
+          </div>
+        </div>
+      </template>
+
+      <div class="transcribe-advanced">
+        <div class="form-group">
+          <label for="transcribe_language">Language (optional)</label>
+          <input type="text" id="transcribe_language" v-model="$store.transcribeForm.language" placeholder="e.g. en, fr" :disabled="!!$store.batchTranscribeProgress">
+        </div>
+      </div>
+
+      <div class="generate-row" style="margin-top:0.75rem">
+        <button type="button" class="btn" :class="{ loading: $store.transcribeLoading }" :disabled="!canTranscribe || !!$store.batchTranscribeProgress" @click="$store.batchTranscribeMode ? submitBatchTranscribe() : submitTranscribe()">
+          <span class="spinner"></span>
+          {{ $store.batchTranscribeMode ? batchTranscribeLabel : 'Transcribe' }}
+        </button>
+      </div>
+
+      <div class="batch-progress" v-if="$store.batchTranscribeProgress">
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: ($store.batchTranscribeProgress.current / $store.batchTranscribeProgress.total * 100) + '%' }"></div>
+        </div>
+        <div class="progress-label">
+          <span>{{ $store.batchTranscribeProgress.current }} / {{ $store.batchTranscribeProgress.total }} &mdash; {{ $store.batchTranscribeProgress.modelName }}</span>
+          <button type="button" class="btn btn-sm btn-ghost" @click="cancelBatchTranscribe" style="font-size:0.6rem;padding:0.1rem 0.4rem">Cancel</button>
+        </div>
+      </div>
+
+      <transition name="slide">
+        <div v-if="$store.batchTranscribeSummary" class="batch-summary" :class="$store.batchTranscribeSummary.type">
+          {{ $store.batchTranscribeSummary.message }}
+          <div class="batch-summary-detail" v-if="$store.batchTranscribeSummary.detail">{{ $store.batchTranscribeSummary.detail }}</div>
+        </div>
+      </transition>
+
+      <transition name="slide">
+        <div class="transcribe-status" v-if="$store.transcribeStatus && !$store.batchTranscribeProgress">
+          <div class="status-msg" :class="$store.transcribeStatusClass">{{ $store.transcribeStatus }}</div>
+        </div>
+      </transition>
+
+      <div v-if="$store.transcribeResults.length && !$store.batchTranscribeMode" class="transcribe-results-list">
+        <div v-for="r in $store.transcribeResults" :key="r.fileName" class="transcribe-result">
+          <div class="transcribe-result-header">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+            <span>{{ r.fileName }}</span>
+            <div class="transcribe-result-meta">
+              <span v-if="r.detected_language" class="transcribe-lang-badge">{{ r.detected_language }}</span>
+            </div>
+            <div class="transcribe-result-actions">
+              <button class="icon-btn" @click="copyTranscription(r.text)" title="Copy transcription">&#x2398;</button>
+              <button class="icon-btn" @click="downloadTranscriptionTxt(r.text, r.fileName)" title="Download as text">&#x2193;</button>
+            </div>
+          </div>
+          <textarea class="transcribe-result-text" readonly>{{ r.text }}</textarea>
+        </div>
+      </div>
+
+      <div v-if="batchGroupedResults.length && $store.batchTranscribeMode" class="transcribe-batch-results">
+        <div v-for="(group, gi) in batchGroupedResults" :key="group.fileName" class="transcribe-batch-group">
+          <div class="transcribe-batch-group-header" @click="toggleFileGroup(gi)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span class="transcribe-batch-group-name">{{ group.fileName }}</span>
+            <span class="transcribe-batch-group-count">{{ group.results.length }} model{{ group.results.length > 1 ? 's' : '' }}</span>
+            <span class="collapse-arrow" :class="{ open: expandedFileGroups[gi] }">&#9654;</span>
+          </div>
+          <div v-if="expandedFileGroups[gi]" class="transcribe-batch-group-body">
+            <div v-for="r in group.results" :key="r.modelId" class="transcribe-batch-item">
+              <div class="transcribe-result-header">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>{{ r.modelName }}</span>
+                <span v-if="r.detected_language" class="transcribe-lang-badge">{{ r.detected_language }}</span>
+                <div class="transcribe-result-actions">
+                  <button class="icon-btn" @click="copyTranscription(r.text)" title="Copy">&#x2398;</button>
+                  <button class="icon-btn" @click="downloadTranscriptionTxt(r.text, r.modelId)" title="Download">&#x2193;</button>
+                </div>
+              </div>
+              <textarea class="transcribe-result-text" readonly>{{ r.text }}</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      </template>
+
     </div>
   </div>
 </script>
