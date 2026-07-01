@@ -35,14 +35,15 @@ download_piper() {
     --local-dir "$dir"
 
   # Flatten: hf preserves subdirs, but engine expects files in models/piper/
-  find "$dir" -name "*.onnx" -maxdepth 3 -exec mv {} "$dir" \;
-  find "$dir" -name "*.onnx.json" -maxdepth 3 -exec mv {} "$dir" \;
+  find "$dir" -name "*.onnx" -exec mv {} "$dir" \;
+  find "$dir" -name "*.onnx.json" -exec mv {} "$dir" \;
   find "$dir" -type d -not -path "$dir" -exec rm -rf {} + 2>/dev/null || true
 
   echo "[piper] Done — $dir/$voice"
 }
 
 download_all_piper() {
+  local filter="${1:-}"
   local dir="$MODELS_DIR/piper"
   mkdir -p "$dir"
   echo "[piper] Fetching voice list..."
@@ -58,8 +59,28 @@ for s in data.get('siblings', []):
         print(f)
 " 2>/dev/null) || { echo "[piper] Failed to fetch voice list"; exit 1; }
 
+  # Filter by language/locale if given
+  if [[ -n "$filter" ]]; then
+    local pattern
+    if [[ "$filter" =~ ^[a-z][a-z]$ ]]; then
+      # 2-letter code → match language prefix (en → en_US, en_GB, etc.)
+      pattern="^${filter}/"
+    elif [[ "$filter" =~ ^[a-z]{2}_[A-Z]{2}$ ]]; then
+      # Full locale → match lang/locale/ prefix (en_US → en/en_US/)
+      local lang="${filter%%_*}"
+      pattern="^${lang}/${filter}/"
+    else
+      pattern="$filter"
+    fi
+    voices=$(echo "$voices" | grep "$pattern" || true)
+  fi
+
   local count
-  count=$(echo "$voices" | wc -l | tr -d ' ')
+  count=$(echo "$voices" | grep -c . || true)
+  if [[ "$count" -eq 0 ]]; then
+    echo "[piper] No voices matched filter '${filter:-<all>}'"
+    return 1
+  fi
   echo "[piper] Downloading all $count voices..."
 
   echo "$voices" | while IFS= read -r voice_path; do
@@ -73,8 +94,8 @@ for s in data.get('siblings', []):
   done
 
   # Flatten
-  find "$dir" -name "*.onnx" -maxdepth 3 -exec mv {} "$dir" \;
-  find "$dir" -name "*.onnx.json" -maxdepth 3 -exec mv {} "$dir" \;
+  find "$dir" -name "*.onnx" -exec mv {} "$dir" \;
+  find "$dir" -name "*.onnx.json" -exec mv {} "$dir" \;
   find "$dir" -type d -not -path "$dir" -exec rm -rf {} + 2>/dev/null || true
 
   local final_count
@@ -85,7 +106,7 @@ for s in data.get('siblings', []):
 case "${2:-kokoro}" in
   kokoro)   download_kokoro ;;
   piper)    download_piper "${3:-en_US-lessac-medium}" ;;
-  piper-all) download_all_piper ;;
+  piper-all) download_all_piper "${3:-}" ;;
   both)
     download_kokoro
     download_piper "${3:-en_US-lessac-medium}"
@@ -96,8 +117,9 @@ case "${2:-kokoro}" in
     echo "Examples:"
     echo "  $0 models kokoro"
     echo "  $0 models piper en_US-lessac-medium"
-    echo "  $0 models piper-all"
-    echo "  $0 models both"
+    echo "  $0 models piper-all                    # all voices"
+    echo "  $0 models piper-all en                 # all English voices (en_US, en_GB, etc.)"
+    echo "  $0 models piper-all en_US              # only US English voices"
     exit 1
     ;;
 esac

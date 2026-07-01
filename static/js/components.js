@@ -740,12 +740,16 @@ comps['generate-form'] = {
         document.body.removeChild(ta);
       });
     },
-    _transcribeOne(url, model, lang) {
-      return fetch('/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, file_url: url, language: lang, response_format: 'json' }),
-      }).then(r => r.json());
+    async _transcribeOne(url, model, lang) {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const fd = new FormData();
+      fd.append('file', blob, 'audio.wav');
+      fd.append('model', model);
+      if (lang) fd.append('language', lang);
+      fd.append('response_format', 'json');
+      const sttResp = await fetch('/v1/audio/transcriptions', { method: 'POST', body: fd });
+      return sttResp.json();
     },
     _wer(ref, hyp) {
       const a = (ref || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -870,6 +874,36 @@ comps['generate-form'] = {
         const data = await fetch('/outputs/detail').then(r => r.json());
         this.$store.outputs = data;
       } catch {}
+
+      if (this.$store.e2eEnabled) {
+        const sttModel = this.$store.e2eModel;
+        const e2eLang = this.$store.e2eLanguage || undefined;
+        for (const out of this.$store.outputs) {
+          if (out.params && out.params.e2e) continue;
+          if (out.params && out.params.batch_id !== batchId) continue;
+          const origText = out.params && out.params.input;
+          if (!origText) continue;
+          try {
+            const transResult = await this._transcribeOne(out.url, sttModel, e2eLang);
+            const similarity = this._wer(origText, transResult.text);
+            const e2eData = {
+              e2e: {
+                stt_model: sttModel,
+                transcription: transResult.text,
+                detected_language: transResult.detected_language || '',
+                wer: similarity.wer,
+                similarity: similarity.similarity,
+              },
+            };
+            fetch('/output/' + encodeURIComponent(out.name) + '/meta', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(e2eData),
+            }).catch(() => {});
+            if (out.params) Object.assign(out.params, e2eData);
+          } catch (_) {}
+        }
+      }
 
       if (this.$store.batchAbort) {
         this.$store.batchSummary = { type: 'warning', message: 'Cancelled. ' + succeeded + ' generated, ' + failed + ' failed.', detail: details.join('\n') };
